@@ -1,0 +1,21 @@
+# Secrets — never commit the populated env file
+.env
+
+# Virtual environments
+.venv/
+venv/
+
+# Python caches / build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Test / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# Least-privilege token; CI needs no secrets (all tests are mocked).
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to commit SHAs (not tags) for supply-chain safety.
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync (frozen — reproduces from uv.lock)
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy)
+        run: uv run mypy src
+
+      - name: Tests (pytest)
+        run: uv run pytest -q
+
+      - name: Egress guard (no hardcoded hosts, no telemetry, single HTTP client)
+        run: |
+          set -euo pipefail
+
+          # 1. No hardcoded URLs/hostnames in source — every base URL comes from
+          #    HALO_API_URL / HALO_AUTH_URL via settings.
+          if grep -rEn '://' src/ ; then
+            echo "::error::Hardcoded URL literal found in src/ — base URLs must come from settings."
+            exit 1
+          fi
+
+          # 2. The httpx client may only be constructed in client.py.
+          if grep -rln 'httpx.AsyncClient(' src/ | grep -v '^src/halo_mcp/client.py$' ; then
+            echo "::error::httpx.AsyncClient constructed outside client.py."
+            exit 1
+          fi
+
+          # 3. No telemetry / analytics / third-party cloud SDK imports.
+          if grep -rEni 'sentry|posthog|segment|datadog|ddtrace|opentelemetry|mixpanel|amplitude|\banalytics\b' src/ ; then
+            echo "::error::Telemetry-like dependency found in src/."
+            exit 1
+          fi
+
+          echo "Egress guard passed: no hardcoded hosts, no telemetry, single client."

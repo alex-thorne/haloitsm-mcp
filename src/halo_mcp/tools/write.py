@@ -1,0 +1,128 @@
+"""Write tools (registered only when ``HALO_ENABLE_WRITES=true``).
+
+Every write tool takes a required ``confirm`` flag and refuses unless it is
+True — a server-side gate that holds for every client, regardless of harness.
+When the host advertises elicitation, the tool additionally asks for an
+interactive confirmation (capability-checked, with graceful fallback to the
+``confirm`` flag).
+
+Updates always carry an explicit ``id``: Halo upserts on POST, so an update
+without ``id`` would silently create a duplicate (enforced by
+:meth:`HaloClient.post_update`).
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastmcp import Context, FastMCP
+
+from ..client import HaloClient
+from ..models import TicketActionSummary, TicketSummary
+
+
+def _clean(payload: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in payload.items() if v is not None}
+
+
+def _supports_elicitation(ctx: Context) -> bool:
+    """True when the connected client advertised the elicitation capability."""
+    client_params = getattr(ctx.session, "client_params", None)
+    capabilities = getattr(client_params, "capabilities", None)
+    return getattr(capabilities, "elicitation", None) is not None
+
+
+async def _gate(ctx: Context, confirm: bool, prompt: str) -> dict[str, Any] | None:
+    """Return a refusal/cancel envelope, or None when the write may proceed."""
+    if not confirm:
+        return {
+            "ok": False,
+            "reason": "confirm_required",
+            "message": "This write requires confirm=true.",
+        }
+    if _supports_elicitation(ctx):
+        result = await ctx.elicit(prompt, response_type=bool)  # type: ignore[arg-type]
+        accepted = result.action == "accept" and bool(getattr(result, "data", False))
+        if not accepted:
+            return {
+                "ok": False,
+                "reason": "cancelled",
+                "message": "The user did not confirm the write.",
+            }
+    return None
+
+
+def _project_write(body: Any, model: type[Any]) -> Any:
+    """Project a Halo write response (object, or single-element array) compactly."""
+    if isinstance(body, list):
+        body = body[0] if body else {}
+    if isinstance(body, dict) and body.get("id") is not None:
+        return model.project(body)
+    return body
+
+
+def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
+    """Register the gated write tools on ``mcp``."""
+
+    @mcp.tool
+    async def create_ticket(
+        summary: str,
+        details: str,
+        client_id: int,
+        confirm: bool,
+        ctx: Context,
+        ticket_type: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a new Halo ticket. Requires confirm=true."""
+        prompt = f"Create a new ticket for client {client_id}: {summary!r}?"
+        gate = await _gate(ctx, confirm, prompt)
+        if gate is not None:
+            return gate
+        payload = _clean(
+            {
+                "summary": summary,
+                "details": details,
+                "client_id": client_id,
+                "tickettype_id": ticket_type,
+            }
+        )
+        created = await client.post("/Tickets", payload)
+        return {"ok": True, "ticket": _project_write(created, TicketSummary)}
+
+    @mcp.tool
+    async def update_ticket(
+        id: int, fields: dict[str, Any], confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Update fields on an existing ticket (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Update ticket {id} with {sorted(fields)}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Tickets", {"id": id, **fields})
+        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+
+    @mcp.tool
+    async def set_ticket_status(
+        id: int, status_id: int, confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Set a ticket's status (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Set ticket {id} to status {status_id}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Tickets", {"id": id, "status_id": status_id})
+        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+
+    @mcp.tool
+    async def add_action(
+        ticket_id: int,
+        note: str,
+        confirm: bool,
+        ctx: Context,
+        outcome: str | None = None,
+    ) -> dict[str, Any]:
+        """Add an action (note/update) to a ticket. Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Add an action to ticket {ticket_id}?")
+        if gate is not None:
+            return gate
+        payload = _clean({"ticket_id": ticket_id, "note": note, "outcome": outcome})
+        created = await client.post("/Actions", payload)
+        return {"ok": True, "action": _project_write(created, TicketActionSummary)}

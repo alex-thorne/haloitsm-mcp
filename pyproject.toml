@@ -1,0 +1,67 @@
+[project]
+name = "halo-mcp"
+version = "0.1.0"
+description = "Local-first MCP server wrapping the Halo ITSM REST API (harness-agnostic, stdio)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Alex Thorne" }]
+keywords = ["mcp", "halo", "itsm", "fastmcp"]
+dependencies = [
+    # FastMCP has had import breakage across majors — pin to 3.x and rely on uv.lock.
+    "fastmcp>=3.4.2,<4.0.0",
+    "httpx>=0.28,<0.29",
+    "pydantic>=2.11,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+]
+
+[project.scripts]
+halo-mcp = "halo_mcp.server:main"
+halo-mcp-smoke = "halo_mcp.smoke:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-asyncio>=0.25",
+    "respx>=0.22,<0.23",
+    "ruff>=0.9,<1.0",
+    "mypy>=1.14,<2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/halo_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F pycodestyle+pyflakes, I import-sort, UP pyupgrade, B bugbear,
+# ASYNC async-correctness, S bandit (security).
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use asserts (S101), dummy credentials (S105/S106/S107), and a seeded
+# PRNG for deterministic backoff (S311).
+"tests/**" = ["S101", "S105", "S106", "S107", "S311"]
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_return_any = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"

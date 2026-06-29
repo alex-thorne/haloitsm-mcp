@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "halo-itsm": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "halo-mcp"],
+      "env": {
+        "HALO_ENABLE_WRITES": "${HALO_ENABLE_WRITES:-false}"
+      }
+    }
+  }
+}

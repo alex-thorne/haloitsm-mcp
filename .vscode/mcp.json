@@ -1,0 +1,23 @@
+{
+  // VS Code / GitHub Copilot registration. NOTE: the root key is `servers`,
+  // NOT `mcpServers` (that is the #1 cross-tool mistake). Copilot MCP tools
+  // only appear in Agent mode. Secrets stay in .env (loaded by the process) —
+  // never put HALO_CLIENT_SECRET here.
+  "servers": {
+    "halo-itsm": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "halo-mcp"],
+      // On macOS/Linux the stdio server can be sandboxed (auto-approves its
+      // tool calls). Remove this if your platform does not support it.
+      "sandboxEnabled": true
+    }
+  },
+  "sandbox": {
+    "network": {
+      // Replace with YOUR Halo host(s). If your token endpoint lives on a
+      // different host than the API, add that host here too.
+      "allowedDomains": ["<your-instance>.haloitsm.com"]
+    }
+  }
+}
