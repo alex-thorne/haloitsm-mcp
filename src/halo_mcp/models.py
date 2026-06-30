@@ -48,14 +48,6 @@ class TicketActionSummary(_HaloModel):
     datetime: str | None = None
 
 
-class AssetSummary(_HaloModel):
-    id: int
-    inventory_number: str | None = None
-    client_id: int | None = None
-    client_name: str | None = None
-    assettype_name: str | None = None
-
-
 class ClientSummary(_HaloModel):
     id: int
     name: str | None = None
@@ -72,6 +64,28 @@ class AgentSummary(_HaloModel):
     id: int
     name: str | None = None
     email: str | None = None
+
+
+class AppointmentSummary(_HaloModel):
+    id: int
+    subject: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    agent_id: int | None = None
+
+
+class AssetSummary(_HaloModel):
+    id: int
+    inventory_number: str | None = None
+    client_id: int | None = None
+    client_name: str | None = None
+    assettype_name: str | None = None
+
+
+class AttachmentSummary(_HaloModel):
+    id: int
+    filename: str | None = None
+    ticket_id: int | None = None
 
 
 class TeamSummary(_HaloModel):

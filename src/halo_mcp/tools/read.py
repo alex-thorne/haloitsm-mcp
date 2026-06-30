@@ -17,7 +17,9 @@ from fastmcp import FastMCP
 from ..client import HaloClient
 from ..models import (
     AgentSummary,
+    AppointmentSummary,
     AssetSummary,
+    AttachmentSummary,
     ClientSummary,
     InvoiceSummary,
     ItemSummary,
@@ -352,6 +354,35 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     async def get_item(id: int) -> dict[str, Any]:
         """Get a single catalogue item by id."""
         return await fetch_one(client, "Item", id, model=ItemSummary)
+
+    @mcp.tool
+    async def list_appointments(agent_id: int | None = None, page: int = 1) -> dict[str, Any]:
+        """List appointments, optionally filtered by agent."""
+        return await fetch_page(
+            client,
+            "/Appointment",
+            collection_key="appointments",
+            model=AppointmentSummary,
+            params=_clean({"agent_id": agent_id}),
+            page=page,
+        )
+
+    @mcp.tool
+    async def get_appointment(id: int) -> dict[str, Any]:
+        """Get a single appointment by id."""
+        return await fetch_one(client, "Appointment", id, model=AppointmentSummary)
+
+    @mcp.tool
+    async def list_attachments(ticket_id: int, page: int = 1) -> dict[str, Any]:
+        """List attachment metadata for a ticket (no binary download)."""
+        return await fetch_page(
+            client,
+            "/Attachment",
+            collection_key="attachments",
+            model=AttachmentSummary,
+            params={"ticket_id": ticket_id},
+            page=page,
+        )
 
     @mcp.tool
     async def whoami() -> dict[str, Any]:
