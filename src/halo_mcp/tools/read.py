@@ -21,9 +21,11 @@ from ..models import (
     ClientSummary,
     SiteSummary,
     StatusSummary,
+    SupplierSummary,
     TeamSummary,
     TicketActionSummary,
     TicketSummary,
+    TicketTypeSummary,
     UserSummary,
 )
 
@@ -250,6 +252,30 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     async def get_site(id: int) -> dict[str, Any]:
         """Get a single site by id."""
         return await fetch_one(client, "Site", id, model=SiteSummary)
+
+    @mcp.tool
+    async def list_suppliers(search: str | None = None, page: int = 1) -> dict[str, Any]:
+        """List suppliers, optionally filtered by free text."""
+        return await fetch_page(
+            client,
+            "/Supplier",
+            collection_key="suppliers",
+            model=SupplierSummary,
+            params=_clean({"search": search}),
+            page=page,
+        )
+
+    @mcp.tool
+    async def get_supplier(id: int) -> dict[str, Any]:
+        """Get a single supplier by id."""
+        return await fetch_one(client, "Supplier", id, model=SupplierSummary)
+
+    @mcp.tool
+    async def list_ticket_types() -> dict[str, Any]:
+        """List ticket types (lookup, for resolving type names to ids)."""
+        return await fetch_page(
+            client, "/TicketType", collection_key="tickettypes", model=TicketTypeSummary
+        )
 
     @mcp.tool
     async def whoami() -> dict[str, Any]:

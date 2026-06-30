@@ -89,3 +89,13 @@ class SiteSummary(_HaloModel):
 class StatusSummary(_HaloModel):
     id: int
     name: str | None = None
+
+
+class SupplierSummary(_HaloModel):
+    id: int
+    name: str | None = None
+
+
+class TicketTypeSummary(_HaloModel):
+    id: int
+    name: str | None = None
