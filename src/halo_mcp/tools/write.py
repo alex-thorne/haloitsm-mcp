@@ -118,7 +118,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         gate = await _gate(ctx, confirm, f"Update ticket {id} with {sorted(fields)}?")
         if gate is not None:
             return gate
-        updated = await client.post_update("/Tickets", {"id": id, **fields})
+        updated = await client.post_update("/Tickets", {**fields, "id": id})
         return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
 
     @mcp.tool
@@ -156,7 +156,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         gate = await _gate(ctx, confirm, f"Update client {id} with {sorted(fields)}?")
         if gate is not None:
             return gate
-        updated = await client.post_update("/Client", {"id": id, **fields})
+        updated = await client.post_update("/Client", {**fields, "id": id})
         return {"ok": True, "client": _project_write(updated, ClientSummary)}
 
     @mcp.tool
@@ -167,7 +167,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         gate = await _gate(ctx, confirm, f"Update user {id} with {sorted(fields)}?")
         if gate is not None:
             return gate
-        updated = await client.post_update("/Users", {"id": id, **fields})
+        updated = await client.post_update("/Users", {**fields, "id": id})
         return {"ok": True, "user": _project_write(updated, UserSummary)}
 
     @mcp.tool
@@ -187,7 +187,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         gate = await _gate(ctx, confirm, f"Update site {id} with {sorted(fields)}?")
         if gate is not None:
             return gate
-        updated = await client.post_update("/Site", {"id": id, **fields})
+        updated = await client.post_update("/Site", {**fields, "id": id})
         return {"ok": True, "site": _project_write(updated, SiteSummary)}
 
     @mcp.tool
@@ -213,5 +213,5 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         gate = await _gate(ctx, confirm, f"Update asset {id} with {sorted(fields)}?")
         if gate is not None:
             return gate
-        updated = await client.post_update("/Asset", {"id": id, **fields})
+        updated = await client.post_update("/Asset", {**fields, "id": id})
         return {"ok": True, "asset": _project_write(updated, AssetSummary)}

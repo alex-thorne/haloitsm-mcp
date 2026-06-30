@@ -243,3 +243,25 @@ async def test_elicitation_error_fails_closed(
     )
     assert data["ok"] is False
     assert data["reason"] == "elicitation_failed"
+
+
+# --- POST-upsert: the explicit id parameter is authoritative ---------------
+
+
+async def test_update_explicit_id_overrides_stray_id_in_fields(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    # A stray 'id' inside fields must NOT retarget the update: the explicit
+    # id parameter wins, so the write always targets the confirmed record.
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.post(api("Tickets")).mock(side_effect=body_capture(sink, {"id": 5, "summary": "x"}))
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "update_ticket",
+        {"id": 5, "fields": {"id": 999, "summary": "x"}, "confirm": True},
+    )
+    assert data["ok"] is True
+    assert sink["body"]["id"] == 5
