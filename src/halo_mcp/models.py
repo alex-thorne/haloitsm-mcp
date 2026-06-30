@@ -109,6 +109,19 @@ class ProjectSummary(_HaloModel):
     client_name: str | None = None
 
 
+class InvoiceSummary(_HaloModel):
+    id: int
+    client_id: int | None = None
+    client_name: str | None = None
+    invoice_date: str | None = None
+    total: float | None = None
+
+
+class ItemSummary(_HaloModel):
+    id: int
+    name: str | None = None
+
+
 class OpportunitySummary(_HaloModel):
     id: int
     name: str | None = None
