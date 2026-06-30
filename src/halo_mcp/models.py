@@ -99,3 +99,18 @@ class SupplierSummary(_HaloModel):
 class TicketTypeSummary(_HaloModel):
     id: int
     name: str | None = None
+
+
+class ProjectSummary(_HaloModel):
+    id: int
+    name: str | None = None
+    summary: str | None = None
+    client_id: int | None = None
+    client_name: str | None = None
+
+
+class OpportunitySummary(_HaloModel):
+    id: int
+    name: str | None = None
+    client_id: int | None = None
+    client_name: str | None = None

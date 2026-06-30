@@ -19,6 +19,8 @@ from ..models import (
     AgentSummary,
     AssetSummary,
     ClientSummary,
+    OpportunitySummary,
+    ProjectSummary,
     SiteSummary,
     StatusSummary,
     SupplierSummary,
@@ -276,6 +278,44 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
         return await fetch_page(
             client, "/TicketType", collection_key="tickettypes", model=TicketTypeSummary
         )
+
+    @mcp.tool
+    async def list_projects(
+        client_id: int | None = None, search: str | None = None, page: int = 1
+    ) -> dict[str, Any]:
+        """List projects, optionally filtered by client or free text."""
+        return await fetch_page(
+            client,
+            "/Projects",
+            collection_key="projects",
+            model=ProjectSummary,
+            params=_clean({"client_id": client_id, "search": search}),
+            page=page,
+        )
+
+    @mcp.tool
+    async def get_project(id: int) -> dict[str, Any]:
+        """Get a single project by id."""
+        return await fetch_one(client, "Projects", id, model=ProjectSummary)
+
+    @mcp.tool
+    async def list_opportunities(
+        client_id: int | None = None, search: str | None = None, page: int = 1
+    ) -> dict[str, Any]:
+        """List sales opportunities, optionally filtered by client or free text."""
+        return await fetch_page(
+            client,
+            "/Opportunities",
+            collection_key="opportunities",
+            model=OpportunitySummary,
+            params=_clean({"client_id": client_id, "search": search}),
+            page=page,
+        )
+
+    @mcp.tool
+    async def get_opportunity(id: int) -> dict[str, Any]:
+        """Get a single opportunity by id."""
+        return await fetch_one(client, "Opportunities", id, model=OpportunitySummary)
 
     @mcp.tool
     async def whoami() -> dict[str, Any]:
