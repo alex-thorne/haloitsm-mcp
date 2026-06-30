@@ -72,6 +72,9 @@ grant (machine-to-machine).
 | `HALO_ENABLE_WRITES` | no | `false` (default). Must be exactly `true` to register write tools |
 | `HALO_PAGE_SIZE` | no | Default `50`, max `1000` |
 | `HALO_TIMEOUT` | no | httpx timeout in seconds, default `30` |
+| `HALO_LOG_LEVEL` | no | Log level for the `halo_mcp` logger: `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
+| `HALO_LOG_FORMAT` | no | `text` (default) or `json`; logs go to **stderr only** |
+| `HALO_LONG_TIMEOUT` | no | httpx timeout for heavy endpoints (e.g. reports), default `120` |
 
 Default read scopes:
 `read:tickets read:assets read:customers read:users read:agents`.
@@ -84,12 +87,27 @@ not auto-add edit scopes.
 
 **Read (always available):** `list_tickets`, `get_ticket`, `search_tickets`,
 `list_ticket_actions`, `list_assets`, `get_asset`, `list_clients`, `list_users`,
-`list_agents`, `list_teams`, `list_statuses`, `whoami`.
+`list_agents`, `list_teams`, `list_statuses`, `whoami`,
+`list_sites`, `get_site`, `list_suppliers`, `get_supplier`, `list_ticket_types`,
+`list_projects`, `get_project`, `list_opportunities`, `get_opportunity`,
+`list_invoices`, `get_invoice`, `list_items`, `get_item`,
+`list_appointments`, `get_appointment`, `list_attachments`, `list_reports`.
 
 **Write (only when `HALO_ENABLE_WRITES=true`):** `create_ticket`,
-`update_ticket`, `add_action`, `set_ticket_status`. Each takes a required
-`confirm` and refuses unless it is `true`; on hosts that support elicitation it
-also asks for interactive confirmation.
+`update_ticket`, `add_action`, `set_ticket_status`,
+`update_client`, `update_user`, `create_site`, `update_site`,
+`create_asset`, `update_asset`.
+Each takes a required `confirm` and refuses unless it is `true`; on hosts that
+support elicitation it also asks for interactive confirmation.
+
+### Observability
+
+Structured log lines go to **stderr only** (never stdout, which carries the MCP
+protocol). Set `HALO_LOG_LEVEL` (`DEBUG`/`INFO`/`WARNING`/`ERROR`) and
+`HALO_LOG_FORMAT` (`text` or `json`). Each log line records method, path,
+HTTP status, duration, attempt count, and a request id. The access token,
+client secret, `Authorization` header, and request/response bodies are **never**
+logged.
 
 > ⚠ **POST-upsert warning.** Halo uses `POST` for both create and update.
 > Omitting `id` silently creates a **duplicate**, so update tools always send the

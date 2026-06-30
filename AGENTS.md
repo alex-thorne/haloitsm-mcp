@@ -32,9 +32,11 @@ registration file differs.
 - **Read tools are always registered** (`tools/read.py`).
 - **Write tools are registered only when `HALO_ENABLE_WRITES=true`**
   (`tools/write.py`). Even then, every write tool requires `confirm=True` and
-  refuses otherwise; where the host supports elicitation, it additionally asks
-  for interactive confirmation (capability-checked, with graceful fallback to
-  the `confirm` flag).
+  refuses otherwise. When the host advertises elicitation, the tool additionally
+  asks for interactive confirmation; if elicitation is not advertised, the gate
+  falls back to the `confirm` flag; if elicitation is advertised but the call
+  errors, the write is **refused (fail-closed)** — the tool never proceeds on an
+  ambiguous response.
 - Because the gate is **server-side**, it protects every client regardless of
   that client's own tool-allowlisting.
 
@@ -49,6 +51,9 @@ non-empty `id`. Any new update tool MUST include the record `id`.
 
 1. Add a typed `@mcp.tool` function in `tools/read.py` (or `tools/write.py`,
    behind the write gate, with a required `confirm: bool`).
+   Simple read resources use `client.fetch_page` (for lists) and the
+   `fetch_one` helper (for single-record lookups). Heavy endpoints (e.g. reports)
+   may pass `timeout=client.long_timeout`.
 2. Map the tool parameters to the Halo query/body. Confirm exact endpoint casing
    against your instance's apidoc; keep paths tolerant.
 3. Return a **compact projection** (use a DTO in `models.py`) — not the raw Halo
