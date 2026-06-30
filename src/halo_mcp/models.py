@@ -79,6 +79,13 @@ class TeamSummary(_HaloModel):
     name: str | None = None
 
 
+class SiteSummary(_HaloModel):
+    id: int
+    name: str | None = None
+    client_id: int | None = None
+    client_name: str | None = None
+
+
 class StatusSummary(_HaloModel):
     id: int
     name: str | None = None

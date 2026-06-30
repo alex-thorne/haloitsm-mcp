@@ -19,6 +19,7 @@ from ..models import (
     AgentSummary,
     AssetSummary,
     ClientSummary,
+    SiteSummary,
     StatusSummary,
     TeamSummary,
     TicketActionSummary,
@@ -60,6 +61,14 @@ async def fetch_page(
     else:
         rows, record_count = [], None
     return {"record_count": record_count, "page": page, "items": model.project_many(rows)}
+
+
+async def fetch_one(
+    client: HaloClient, resource: str, id: int, *, model: type[Any]
+) -> dict[str, Any]:
+    """Fetch a single Halo record by id and return its compact projection."""
+    body = await client.get(f"/{resource}/{id}")
+    return model.project(body) if isinstance(body, dict) else {}
 
 
 async def whoami_query(client: HaloClient) -> dict[str, Any]:
@@ -222,6 +231,25 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     async def list_statuses() -> dict[str, Any]:
         """List ticket statuses (lookup, for resolving status names to ids)."""
         return await fetch_page(client, "/Status", collection_key="statuses", model=StatusSummary)
+
+    @mcp.tool
+    async def list_sites(
+        client_id: int | None = None, search: str | None = None, page: int = 1
+    ) -> dict[str, Any]:
+        """List sites/locations, optionally filtered by client or free text."""
+        return await fetch_page(
+            client,
+            "/Site",
+            collection_key="sites",
+            model=SiteSummary,
+            params=_clean({"client_id": client_id, "search": search}),
+            page=page,
+        )
+
+    @mcp.tool
+    async def get_site(id: int) -> dict[str, Any]:
+        """Get a single site by id."""
+        return await fetch_one(client, "Site", id, model=SiteSummary)
 
     @mcp.tool
     async def whoami() -> dict[str, Any]:
