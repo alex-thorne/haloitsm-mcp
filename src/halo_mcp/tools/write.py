@@ -18,7 +18,7 @@ from typing import Any
 from fastmcp import Context, FastMCP
 
 from ..client import HaloClient
-from ..models import ClientSummary, TicketActionSummary, TicketSummary, UserSummary
+from ..models import ClientSummary, SiteSummary, TicketActionSummary, TicketSummary, UserSummary
 from ..observability import get_logger
 
 _log = get_logger()
@@ -162,3 +162,23 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
             return gate
         updated = await client.post_update("/Users", {"id": id, **fields})
         return {"ok": True, "user": _project_write(updated, UserSummary)}
+
+    @mcp.tool
+    async def create_site(name: str, client_id: int, confirm: bool, ctx: Context) -> dict[str, Any]:
+        """Create a new site for a client. Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Create site {name!r} for client {client_id}?")
+        if gate is not None:
+            return gate
+        created = await client.post("/Site", _clean({"name": name, "client_id": client_id}))
+        return {"ok": True, "site": _project_write(created, SiteSummary)}
+
+    @mcp.tool
+    async def update_site(
+        id: int, fields: dict[str, Any], confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Update fields on an existing site (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Update site {id} with {sorted(fields)}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Site", {"id": id, **fields})
+        return {"ok": True, "site": _project_write(updated, SiteSummary)}
