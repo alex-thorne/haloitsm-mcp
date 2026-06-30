@@ -64,4 +64,9 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
 def main() -> None:
     """Console-script entry point: serve over stdio."""
-    build_server().run()
+    from .config import load_settings
+    from .observability import configure_logging
+
+    settings = load_settings()
+    configure_logging(settings.log_level, settings.log_format)
+    build_server(settings).run()

@@ -57,6 +57,8 @@ class Settings(BaseSettings):
         gt=0,
         description="httpx timeout (seconds) for heavy endpoints such as reports.",
     )
+    log_level: str = Field(default="INFO", description="Logging level for the halo_mcp logger.")
+    log_format: str = Field(default="text", description="Log line format: 'text' or 'json'.")
 
     @property
     def base_url(self) -> str:

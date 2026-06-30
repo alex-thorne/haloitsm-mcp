@@ -16,7 +16,9 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -24,6 +26,7 @@ import httpx
 
 from .auth import TokenProvider
 from .config import Settings
+from .observability import current_request_id, get_logger, new_request_id
 
 # Statuses Halo may return transiently; rate limits are undocumented and differ
 # between self-hosted and cloud, so treat these as retryable.
@@ -67,6 +70,7 @@ class HaloClient:
         self._rng = rng or random.Random()  # noqa: S311 - jitter, not crypto
         self._max_retries = max_retries
         self._max_pages = max_pages
+        self._log = get_logger()
 
     @property
     def page_size(self) -> int:
@@ -107,6 +111,8 @@ class HaloClient:
     ) -> httpx.Response:
         url = self._url(path)
         timeout_arg: Any = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
+        new_request_id()
+        started = time.monotonic()
         attempt = 0
         reauthed = False
         while True:
@@ -125,9 +131,11 @@ class HaloClient:
                 reauthed = True
                 continue
             if status in _RETRY_STATUSES and attempt < self._max_retries:
+                self._log_request(method, path, status, started, attempt, retry=True)
                 await self._sleep(self._retry_delay(response, attempt))
                 attempt += 1
                 continue
+            self._log_request(method, path, status, started, attempt, retry=False)
             if status >= httpx.codes.BAD_REQUEST:
                 raise HaloAPIError(status, _parse_body(response))
             return response
@@ -141,6 +149,23 @@ class HaloClient:
                 pass  # not a seconds value (e.g. an HTTP-date) -> fall back to backoff
         jitter = self._rng.uniform(0, _BACKOFF_JITTER)  # noqa: S311 - jitter, not crypto
         return _BACKOFF_BASE * (2.0**attempt) + jitter
+
+    def _log_request(
+        self, method: str, path: str, status: int, started: float, attempt: int, *, retry: bool
+    ) -> None:
+        level = logging.WARNING if retry or status >= httpx.codes.BAD_REQUEST else logging.INFO
+        self._log.log(
+            level,
+            "halo request",
+            extra={
+                "method": method,
+                "path": path,
+                "status": status,
+                "attempt": attempt,
+                "duration_ms": round((time.monotonic() - started) * 1000, 1),
+                "request_id": current_request_id(),
+            },
+        )
 
     async def get(
         self, path: str, params: dict[str, Any] | None = None, *, timeout: float | None = None
