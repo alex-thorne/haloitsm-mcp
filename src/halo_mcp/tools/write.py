@@ -18,7 +18,14 @@ from typing import Any
 from fastmcp import Context, FastMCP
 
 from ..client import HaloClient
-from ..models import ClientSummary, SiteSummary, TicketActionSummary, TicketSummary, UserSummary
+from ..models import (
+    AssetSummary,
+    ClientSummary,
+    SiteSummary,
+    TicketActionSummary,
+    TicketSummary,
+    UserSummary,
+)
 from ..observability import get_logger
 
 _log = get_logger()
@@ -182,3 +189,29 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
             return gate
         updated = await client.post_update("/Site", {"id": id, **fields})
         return {"ok": True, "site": _project_write(updated, SiteSummary)}
+
+    @mcp.tool
+    async def create_asset(
+        inventory_number: str, client_id: int, confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Create a new asset / configuration item. Requires confirm=true."""
+        gate = await _gate(
+            ctx, confirm, f"Create asset {inventory_number!r} for client {client_id}?"
+        )
+        if gate is not None:
+            return gate
+        created = await client.post(
+            "/Asset", _clean({"inventory_number": inventory_number, "client_id": client_id})
+        )
+        return {"ok": True, "asset": _project_write(created, AssetSummary)}
+
+    @mcp.tool
+    async def update_asset(
+        id: int, fields: dict[str, Any], confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Update fields on an existing asset (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Update asset {id} with {sorted(fields)}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Asset", {"id": id, **fields})
+        return {"ok": True, "asset": _project_write(updated, AssetSummary)}
