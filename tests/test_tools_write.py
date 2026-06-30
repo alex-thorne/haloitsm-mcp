@@ -230,20 +230,16 @@ async def raising_handler(message: str, response_type: Any, params: Any, context
     raise RuntimeError("client mis-advertised elicitation")
 
 
-async def test_elicitation_error_falls_back_to_confirm_flag(
+async def test_elicitation_error_fails_closed(
     make_settings: Callable[..., Settings],
-    respx_mock,
-    mock_token,  # noqa: ANN001
 ) -> None:
-    mock_token()
-    route = respx_mock.post(api("Tickets")).mock(
-        return_value=httpx.Response(200, json={"id": 1, "summary": "s"})
-    )
+    # No Halo routes registered: if a write were attempted, it would error out.
+    # A fail-closed gate must refuse before any Halo call.
     data = await run_tool(
         make_settings(enable_writes=True),
         "create_ticket",
         {"summary": "s", "details": "d", "client_id": 3, "confirm": True},
         handler=raising_handler,
     )
-    assert data["ok"] is True
-    assert route.call_count == 1
+    assert data["ok"] is False
+    assert data["reason"] == "elicitation_failed"

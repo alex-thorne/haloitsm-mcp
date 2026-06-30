@@ -46,12 +46,16 @@ async def _gate(ctx: Context, confirm: bool, prompt: str) -> dict[str, Any] | No
     if _supports_elicitation(ctx):
         try:
             result = await ctx.elicit(prompt, response_type=bool)  # type: ignore[arg-type]
-        except Exception:  # noqa: BLE001 - any elicit failure falls back to the confirm flag
+        except Exception:  # noqa: BLE001 - elicitation failure must fail closed, not proceed
             _log.warning(
-                "elicitation failed; proceeding on explicit confirm=true",
+                "elicitation failed; refusing the write (fail-closed)",
                 extra={"path": "elicit"},
             )
-            return None
+            return {
+                "ok": False,
+                "reason": "elicitation_failed",
+                "message": "Interactive confirmation could not be obtained; the write was refused.",
+            }
         accepted = result.action == "accept" and bool(getattr(result, "data", False))
         if not accepted:
             return {
