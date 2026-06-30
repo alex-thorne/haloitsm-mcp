@@ -60,5 +60,5 @@ def configure_logging(level: str = "INFO", fmt: str = "text") -> None:
 
 
 def get_logger() -> logging.Logger:
-    """Return the package logger (a child of ``halo_mcp``)."""
+    """Return the ``halo_mcp`` package logger."""
     return logging.getLogger(_LOGGER_NAME)

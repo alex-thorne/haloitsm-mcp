@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -52,8 +53,17 @@ async def test_request_emits_structured_log_without_secrets(
 def test_configure_logging_is_idempotent_and_stderr() -> None:
     from halo_mcp.observability import configure_logging, get_logger
 
-    configure_logging("DEBUG", "json")
-    configure_logging("INFO", "text")  # second call must not stack handlers
     logger = get_logger()
-    assert len(logger.handlers) == 1
-    assert logger.level == logging.INFO
+    saved_handlers = logger.handlers[:]
+    saved_propagate = logger.propagate
+    saved_level = logger.level
+    try:
+        configure_logging("DEBUG", "json")
+        configure_logging("INFO", "text")  # second call must not stack handlers
+        assert len(logger.handlers) == 1
+        assert logger.level == logging.INFO
+        assert logger.handlers[0].stream is sys.stderr
+    finally:
+        logger.handlers[:] = saved_handlers
+        logger.propagate = saved_propagate
+        logger.setLevel(saved_level)
