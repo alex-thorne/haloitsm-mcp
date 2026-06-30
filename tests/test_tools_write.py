@@ -224,3 +224,26 @@ async def test_elicitation_decline_cancels_without_writing(
     )
     assert data["ok"] is False
     assert data["reason"] == "cancelled"
+
+
+async def raising_handler(message: str, response_type: Any, params: Any, context: Any) -> bool:
+    raise RuntimeError("client mis-advertised elicitation")
+
+
+async def test_elicitation_error_falls_back_to_confirm_flag(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    route = respx_mock.post(api("Tickets")).mock(
+        return_value=httpx.Response(200, json={"id": 1, "summary": "s"})
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "create_ticket",
+        {"summary": "s", "details": "d", "client_id": 3, "confirm": True},
+        handler=raising_handler,
+    )
+    assert data["ok"] is True
+    assert route.call_count == 1

@@ -19,6 +19,9 @@ from fastmcp import Context, FastMCP
 
 from ..client import HaloClient
 from ..models import TicketActionSummary, TicketSummary
+from ..observability import get_logger
+
+_log = get_logger()
 
 
 def _clean(payload: dict[str, Any]) -> dict[str, Any]:
@@ -41,7 +44,14 @@ async def _gate(ctx: Context, confirm: bool, prompt: str) -> dict[str, Any] | No
             "message": "This write requires confirm=true.",
         }
     if _supports_elicitation(ctx):
-        result = await ctx.elicit(prompt, response_type=bool)  # type: ignore[arg-type]
+        try:
+            result = await ctx.elicit(prompt, response_type=bool)  # type: ignore[arg-type]
+        except Exception:  # noqa: BLE001 - any elicit failure falls back to the confirm flag
+            _log.warning(
+                "elicitation failed; proceeding on explicit confirm=true",
+                extra={"path": "elicit"},
+            )
+            return None
         accepted = result.action == "accept" and bool(getattr(result, "data", False))
         if not accepted:
             return {
