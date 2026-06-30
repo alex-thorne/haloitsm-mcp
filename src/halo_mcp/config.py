@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     )
     page_size: int = Field(default=50, ge=1, le=1000, description="Default list page size.")
     timeout: float = Field(default=30.0, gt=0, description="httpx request timeout in seconds.")
+    long_timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description="httpx timeout (seconds) for heavy endpoints such as reports.",
+    )
 
     @property
     def base_url(self) -> str:

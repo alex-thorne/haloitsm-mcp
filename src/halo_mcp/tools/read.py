@@ -41,6 +41,7 @@ async def fetch_page(
     params: dict[str, Any] | None = None,
     page: int = 1,
     page_size: int | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """Fetch one Halo list page and return a compact ``{record_count, page, items}``.
 
@@ -49,7 +50,7 @@ async def fetch_page(
     """
     size = page_size or client.page_size
     query = {**_clean(params or {}), "pageinate": True, "page_no": page, "page_size": size}
-    body = await client.get(resource, params=query)
+    body = await client.get(resource, params=query, timeout=timeout)
     if isinstance(body, list):
         rows, record_count = body, None
     elif isinstance(body, dict):

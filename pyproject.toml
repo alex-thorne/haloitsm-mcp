@@ -46,9 +46,14 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests use asserts (S101), dummy credentials (S105/S106/S107), and a seeded
-# PRNG for deterministic backoff (S311).
-"tests/**" = ["S101", "S105", "S106", "S107", "S311"]
+# Tests use asserts (S101), dummy credentials (S105/S106/S107), a seeded
+# PRNG for deterministic backoff (S311), and duck-typed httpx stubs with a
+# timeout param (ASYNC109 — intentional, not an asyncio.timeout pattern).
+"tests/**" = ["S101", "S105", "S106", "S107", "S311", "ASYNC109"]
+# Client and tools thread httpx timeout values explicitly — ASYNC109 does not
+# apply because these are not asyncio-level timeout boundaries.
+"src/halo_mcp/client.py" = ["ASYNC109"]
+"src/halo_mcp/tools/read.py" = ["ASYNC109"]
 
 [tool.mypy]
 python_version = "3.12"

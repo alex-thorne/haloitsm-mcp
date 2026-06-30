@@ -74,6 +74,11 @@ class HaloClient:
         return self._settings.page_size
 
     @property
+    def long_timeout(self) -> float:
+        """Timeout (seconds) for heavy endpoints, from settings."""
+        return self._settings.long_timeout
+
+    @property
     def base_url(self) -> str:
         """The Halo API base URL."""
         return self._settings.base_url
@@ -98,8 +103,10 @@ class HaloClient:
         *,
         params: dict[str, Any] | None = None,
         json: Any | None = None,
+        timeout: float | None = None,
     ) -> httpx.Response:
         url = self._url(path)
+        timeout_arg: Any = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
         attempt = 0
         reauthed = False
         while True:
@@ -110,6 +117,7 @@ class HaloClient:
                 params=params,
                 json=json,
                 headers={"Authorization": f"Bearer {token}"},
+                timeout=timeout_arg,
             )
             status = response.status_code
             if status == httpx.codes.UNAUTHORIZED and not reauthed:
@@ -134,13 +142,17 @@ class HaloClient:
         jitter = self._rng.uniform(0, _BACKOFF_JITTER)  # noqa: S311 - jitter, not crypto
         return _BACKOFF_BASE * (2.0**attempt) + jitter
 
-    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        return _parse_body(await self._request("GET", path, params=params))
+    async def get(
+        self, path: str, params: dict[str, Any] | None = None, *, timeout: float | None = None
+    ) -> Any:
+        return _parse_body(await self._request("GET", path, params=params, timeout=timeout))
 
-    async def post(self, path: str, json: Any) -> Any:
-        return _parse_body(await self._request("POST", path, json=json))
+    async def post(self, path: str, json: Any, *, timeout: float | None = None) -> Any:
+        return _parse_body(await self._request("POST", path, json=json, timeout=timeout))
 
-    async def post_update(self, path: str, payload: dict[str, Any]) -> Any:
+    async def post_update(
+        self, path: str, payload: dict[str, Any], *, timeout: float | None = None
+    ) -> Any:
         """POST an update, refusing to proceed without an explicit ``id``.
 
         Halo uses POST for both create and update; omitting ``id`` silently
@@ -151,7 +163,7 @@ class HaloClient:
                 "update requires an explicit non-empty 'id' — Halo upserts on POST, "
                 "so omitting 'id' would create a duplicate record."
             )
-        return await self.post(path, json=payload)
+        return await self.post(path, json=payload, timeout=timeout)
 
     async def paginate(
         self,
@@ -161,6 +173,7 @@ class HaloClient:
         params: dict[str, Any] | None = None,
         page_size: int | None = None,
         max_records: int | None = None,
+        timeout: float | None = None,
     ) -> list[dict[str, Any]]:
         """Walk Halo's offset pages until ``record_count`` is satisfied.
 
@@ -178,7 +191,7 @@ class HaloClient:
                 "page_no": page_no,
                 "page_size": size,
             }
-            body = await self.get(resource, params=page_params)
+            body = await self.get(resource, params=page_params, timeout=timeout)
             rows, record_count = _extract_page(body, collection_key)
             records.extend(rows)
             if not rows:
