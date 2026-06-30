@@ -63,6 +63,37 @@ async def test_list_tickets_projects_and_passes_filters(
     assert sink["params"]["search"] == "vpn"
     assert sink["params"]["page_no"] == "1"
     assert sink["params"]["page_size"] == "25"
+    # No date range requested -> no date params leak into the query.
+    assert "datesearch" not in sink["params"]
+    assert "startdate" not in sink["params"]
+    assert "enddate" not in sink["params"]
+
+
+async def test_list_tickets_date_range_filter(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    payload = {
+        "record_count": 1,
+        "tickets": [{"id": 5, "summary": "recent", "dateoccurred": "2026-06-20T09:00:00"}],
+    }
+    respx_mock.get(api("Tickets")).mock(side_effect=capturing(payload, sink))
+
+    data = await call(
+        make_settings(),
+        "list_tickets",
+        {"created_since": "2026-06-16", "created_before": "2026-07-01T00:00:00"},
+    )
+
+    # created_since/created_before map to Halo's dateoccurred range filter.
+    assert sink["params"]["datesearch"] == "dateoccurred"
+    assert sink["params"]["startdate"] == "2026-06-16"
+    assert sink["params"]["enddate"] == "2026-07-01T00:00:00"
+    # The created date is projected through so callers can see it.
+    assert data["items"][0]["dateoccurred"] == "2026-06-20T09:00:00"
 
 
 async def test_list_tickets_defaults_page_size_from_settings(

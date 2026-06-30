@@ -12,7 +12,10 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Least-privilege default: read-only across the entities the read tools touch.
-DEFAULT_READ_SCOPES = "read:tickets read:assets read:customers read:users read:agents"
+# Only scope names that exist on Halo — there is no read:users or read:agents
+# scope (requesting either yields invalid_scope at the token endpoint). Agent,
+# team, status and user/contact lookups need no dedicated scope.
+DEFAULT_READ_SCOPES = "read:tickets read:assets read:customers"
 
 
 class Settings(BaseSettings):

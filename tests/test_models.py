@@ -17,6 +17,7 @@ def test_ticket_summary_trims_to_compact_fields() -> None:
         "client_name": "Acme",
         "agent_id": 3,
         "team": "1st Line",
+        "dateoccurred": "2026-06-29T15:41:46.637",
         # noise the model must drop:
         "details": "x" * 5000,
         "custom_fields": [{"a": 1}],
@@ -30,6 +31,7 @@ def test_ticket_summary_trims_to_compact_fields() -> None:
         "client_name": "Acme",
         "agent_id": 3,
         "team": "1st Line",
+        "dateoccurred": "2026-06-29T15:41:46.637",
     }
 
 

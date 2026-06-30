@@ -78,10 +78,20 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
         agent_id: int | None = None,
         team: str | None = None,
         search: str | None = None,
+        created_since: str | None = None,
+        created_before: str | None = None,
         page: int = 1,
         page_size: int | None = None,
     ) -> dict[str, Any]:
-        """List Halo tickets, optionally filtered by status, client, agent, team or free text."""
+        """List Halo tickets, filtered by status, client, agent, team, free text or creation date.
+
+        ``created_since`` / ``created_before`` take an ISO-8601 date or datetime
+        (e.g. ``2026-06-16`` or ``2026-06-16T00:00:00``) and filter on the
+        ticket's logged date (Halo ``dateoccurred``), server-side.
+        """
+        # Only name the date field when a bound is given, so unfiltered calls
+        # send no date params at all.
+        date_field = "dateoccurred" if (created_since or created_before) else None
         params = _clean(
             {
                 "status_id": status,
@@ -89,6 +99,9 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
                 "agent_id": agent_id,
                 "team": team,
                 "search": search,
+                "datesearch": date_field,
+                "startdate": created_since,
+                "enddate": created_before,
             }
         )
         return await fetch_page(

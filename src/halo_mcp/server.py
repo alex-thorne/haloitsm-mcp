@@ -20,7 +20,8 @@ Halo ITSM tools wrap a Halo IT Service Management instance over its REST API.
 
 Read tools (always available):
 - list_tickets / search_tickets / get_ticket — find and inspect tickets; filter
-  by status, client, agent, team, or free text.
+  by status, client, agent, team, free text, or creation date (created_since /
+  created_before).
 - list_ticket_actions, or get_ticket(include_actions=true) — the updates/notes
   recorded on a ticket.
 - list_assets / get_asset — configuration items and hardware.

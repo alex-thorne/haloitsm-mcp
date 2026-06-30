@@ -16,8 +16,10 @@ def test_defaults_are_read_only_and_least_privilege(
     s = make_settings()
     # Writes are off unless explicitly enabled.
     assert s.enable_writes is False
-    # Default scopes are the least-privilege read set.
-    assert s.scopes == "read:tickets read:assets read:customers read:users read:agents"
+    # Default scopes are the least-privilege read set. Only scope names that
+    # actually exist on Halo — there is no read:users or read:agents scope
+    # (requesting them yields invalid_scope); that data needs no dedicated scope.
+    assert s.scopes == "read:tickets read:assets read:customers"
     assert s.page_size == 50
     assert s.timeout == 5.0
     assert s.tenant is None

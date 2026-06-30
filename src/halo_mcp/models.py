@@ -35,6 +35,8 @@ class TicketSummary(_HaloModel):
     client_name: str | None = None
     agent_id: int | None = None
     team: str | None = None
+    # Halo's logged/created date for the ticket (ISO-8601 string).
+    dateoccurred: str | None = None
 
 
 class TicketActionSummary(_HaloModel):
