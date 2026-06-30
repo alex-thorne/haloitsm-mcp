@@ -51,9 +51,9 @@ non-empty `id`. Any new update tool MUST include the record `id`.
 
 1. Add a typed `@mcp.tool` function in `tools/read.py` (or `tools/write.py`,
    behind the write gate, with a required `confirm: bool`).
-   Simple read resources use `client.fetch_page` (for lists) and the
-   `fetch_one` helper (for single-record lookups). Heavy endpoints (e.g. reports)
-   may pass `timeout=client.long_timeout`.
+   Simple read resources call `fetch_page(client, …)` (for lists) and the
+   `fetch_one(client, …)` helper (for single-record lookups). Heavy endpoints
+   (e.g. reports) may pass `timeout=client.long_timeout`.
 2. Map the tool parameters to the Halo query/body. Confirm exact endpoint casing
    against your instance's apidoc; keep paths tolerant.
 3. Return a **compact projection** (use a DTO in `models.py`) — not the raw Halo
