@@ -29,6 +29,13 @@ Read tools (always available):
   and lookup data. Use list_statuses / list_teams to resolve names to ids before
   filtering or writing.
 - whoami — quick authenticated health check.
+- list_sites / get_site, list_suppliers / get_supplier, list_ticket_types —
+  more directory and lookup data.
+- list_projects / get_project, list_opportunities / get_opportunity — delivery
+  and sales records.
+- list_invoices / get_invoice, list_items / get_item — billing and catalogue.
+- list_appointments / get_appointment, list_attachments (by ticket),
+  list_reports — scheduling, attachment metadata, and the report catalogue.
 
 Results are compact projections (ids + key fields), not full Halo records. List
 tools return {record_count, page, items}; page with page / page_size.

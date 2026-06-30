@@ -141,3 +141,8 @@ class OpportunitySummary(_HaloModel):
     name: str | None = None
     client_id: int | None = None
     client_name: str | None = None
+
+
+class ReportSummary(_HaloModel):
+    id: int
+    name: str | None = None

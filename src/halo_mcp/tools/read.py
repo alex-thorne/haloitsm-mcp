@@ -25,6 +25,7 @@ from ..models import (
     ItemSummary,
     OpportunitySummary,
     ProjectSummary,
+    ReportSummary,
     SiteSummary,
     StatusSummary,
     SupplierSummary,
@@ -382,6 +383,18 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             model=AttachmentSummary,
             params={"ticket_id": ticket_id},
             page=page,
+        )
+
+    @mcp.tool
+    async def list_reports(page: int = 1) -> dict[str, Any]:
+        """List available reports (lookup). Uses the longer report timeout."""
+        return await fetch_page(
+            client,
+            "/Report",
+            collection_key="reports",
+            model=ReportSummary,
+            page=page,
+            timeout=client.long_timeout,
         )
 
     @mcp.tool
