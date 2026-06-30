@@ -18,7 +18,7 @@ from typing import Any
 from fastmcp import Context, FastMCP
 
 from ..client import HaloClient
-from ..models import TicketActionSummary, TicketSummary
+from ..models import ClientSummary, TicketActionSummary, TicketSummary, UserSummary
 from ..observability import get_logger
 
 _log = get_logger()
@@ -140,3 +140,25 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         payload = _clean({"ticket_id": ticket_id, "note": note, "outcome": outcome})
         created = await client.post("/Actions", payload)
         return {"ok": True, "action": _project_write(created, TicketActionSummary)}
+
+    @mcp.tool
+    async def update_client(
+        id: int, fields: dict[str, Any], confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Update fields on an existing client (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Update client {id} with {sorted(fields)}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Client", {"id": id, **fields})
+        return {"ok": True, "client": _project_write(updated, ClientSummary)}
+
+    @mcp.tool
+    async def update_user(
+        id: int, fields: dict[str, Any], confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Update fields on an existing user (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Update user {id} with {sorted(fields)}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Users", {"id": id, **fields})
+        return {"ok": True, "user": _project_write(updated, UserSummary)}
