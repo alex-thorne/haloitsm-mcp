@@ -70,6 +70,10 @@ class TicketSummary(_HaloModel):
     lastactiondate: str | None = None
     category_1: str | None = None
     onhold: bool | None = None
+    # Browser-openable deep link to this ticket on the configured Halo instance.
+    # Never present on the raw Halo payload; callers attach it after projection
+    # (see tools/read.py, tools/write.py) since it depends on HaloClient.portal_url.
+    url: str | None = None
 
     @model_validator(mode="before")
     @classmethod

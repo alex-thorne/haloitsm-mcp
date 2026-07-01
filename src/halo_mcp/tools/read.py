@@ -47,6 +47,19 @@ def _clean(params: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in params.items() if v is not None}
 
 
+def _with_ticket_urls(client: HaloClient, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach a browser-openable ``url`` to each projected ticket dict, in place.
+
+    Derived from the configured Halo instance (``HaloClient.portal_url``), never
+    hardcoded, so links resolve correctly for whatever ``.env`` the server runs
+    with.
+    """
+    for item in items:
+        if isinstance(item, dict) and item.get("id") is not None:
+            item["url"] = client.ticket_url(item["id"])
+    return items
+
+
 def _scope_error(client: HaloClient, exc: HaloForbiddenError) -> dict[str, Any]:
     """Turn a 403 into a compact, actionable envelope instead of a raw error.
 
@@ -237,7 +250,7 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             created_before=created_before,
             open_only=open_only,
         )
-        return await fetch_page(
+        result = await fetch_page(
             client,
             "/Tickets",
             collection_key="tickets",
@@ -246,12 +259,17 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             page=page,
             page_size=page_size,
         )
+        if "items" in result:
+            _with_ticket_urls(client, result["items"])
+        return result
 
     @mcp.tool
     async def get_ticket(id: int, include_actions: bool = False) -> dict[str, Any]:
         """Get a single ticket by id; set include_actions to also return its actions."""
         body = await client.get(f"/Tickets/{id}")
         ticket = TicketSummary.project(body) if isinstance(body, dict) else {}
+        if ticket.get("id") is not None:
+            ticket["url"] = client.ticket_url(ticket["id"])
         if include_actions:
             actions = await fetch_page(
                 client,
@@ -266,7 +284,7 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     @mcp.tool
     async def search_tickets(query: str, page: int = 1) -> dict[str, Any]:
         """Free-text search across tickets."""
-        return await fetch_page(
+        result = await fetch_page(
             client,
             "/Tickets",
             collection_key="tickets",
@@ -274,6 +292,9 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             params={"search": query},
             page=page,
         )
+        if "items" in result:
+            _with_ticket_urls(client, result["items"])
+        return result
 
     @mcp.tool
     async def summarise_tickets(
@@ -381,6 +402,7 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             items.append(
                 {
                     "id": r["id"],
+                    "url": client.ticket_url(r["id"]),
                     "summary": r.get("summary"),
                     "status_id": r.get("status_id"),
                     "priority_id": r.get("priority_id"),

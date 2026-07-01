@@ -201,3 +201,10 @@ async def test_post_update_with_id_succeeds(
 
     assert result == {"id": 7, "summary": "patched"}
     assert route.call_count == 1
+
+
+def test_ticket_url_derived_from_settings_portal_url(settings: Settings, stub_token: Any) -> None:
+    client = HaloClient(settings, token_provider=stub_token)
+    # TEST_API_URL is "https://halo.test/api" -> portal is "https://halo.test".
+    assert client.ticket_url(3757) == "https://halo.test/ticket?id=3757"
+    assert client.portal_url == "https://halo.test"

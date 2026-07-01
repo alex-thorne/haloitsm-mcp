@@ -51,3 +51,16 @@ def test_page_size_is_bounded(make_settings: Callable[..., Settings]) -> None:
 def test_enable_writes_parses_truthy_strings(make_settings: Callable[..., Settings]) -> None:
     assert make_settings(enable_writes="true").enable_writes is True
     assert make_settings(enable_writes="false").enable_writes is False
+
+
+def test_portal_url_derived_from_api_url(make_settings: Callable[..., Settings]) -> None:
+    # HALO_API_URL is the Resource Server API base (…/api); the web portal used
+    # for deep links lives at the same scheme+host with no path. Never
+    # hardcoded — this must work for whatever host is in a user's own .env.
+    s = make_settings(api_url="https://acme.haloitsm.com/api")
+    assert s.portal_url == "https://acme.haloitsm.com"
+
+
+def test_portal_url_ignores_deeper_api_paths(make_settings: Callable[..., Settings]) -> None:
+    s = make_settings(api_url="https://support.example.com/haloapi/api")
+    assert s.portal_url == "https://support.example.com"

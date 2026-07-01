@@ -179,6 +179,7 @@ async def test_update_ticket_sends_id(
     assert data["ok"] is True
     assert sink["body"]["id"] == 5
     assert sink["body"]["summary"] == "new"
+    assert data["ticket"]["url"] == "https://halo.test/ticket?id=5"
 
 
 async def test_set_ticket_status_sends_id_and_status(
@@ -216,6 +217,7 @@ async def test_add_action_posts_note(
     assert data["ok"] is True
     assert data["action"]["id"] == 11
     assert sink["body"] == {"ticket_id": 7, "note": "hello", "outcome": "Resolved"}
+    assert data["ticket_url"] == "https://halo.test/ticket?id=7"
 
 
 async def test_assign_ticket_sends_id_agent_and_team(
@@ -362,6 +364,7 @@ async def test_bulk_assign_updates_each_by_id(
     assert sorted(b["id"] for b in bodies) == [1, 2, 3]
     assert all(b["team_id"] == 5 for b in bodies)
     assert [r["id"] for r in data["results"]] == [1, 2, 3]
+    assert data["results"][0]["url"] == "https://halo.test/ticket?id=1"
 
 
 async def test_bulk_assign_dedupes_ids(

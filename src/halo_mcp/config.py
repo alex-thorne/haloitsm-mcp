@@ -8,6 +8,8 @@ logs, reprs, or tracebacks.
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -66,6 +68,19 @@ class Settings(BaseSettings):
     def base_url(self) -> str:
         """API base with any trailing slash removed, for clean path joining."""
         return self.api_url.rstrip("/")
+
+    @property
+    def portal_url(self) -> str:
+        """Web portal origin, derived from ``api_url`` (scheme + host only).
+
+        Halo's API base is conventionally ``https://<instance>.haloitsm.com/api``
+        while the agent/end-user portal lives at the same host with no ``/api``
+        suffix (e.g. ``https://<instance>.haloitsm.com``). Deriving it from
+        whatever ``HALO_API_URL`` is configured — rather than hardcoding a host —
+        keeps generated links correct for every tenant's own instance.
+        """
+        parts = urlsplit(self.api_url)
+        return f"{parts.scheme}://{parts.netloc}"
 
 
 def load_settings() -> Settings:

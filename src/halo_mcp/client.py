@@ -107,6 +107,15 @@ class HaloClient:
         """The Halo API base URL."""
         return self._settings.base_url
 
+    @property
+    def portal_url(self) -> str:
+        """The Halo web portal origin, derived from settings (see Settings.portal_url)."""
+        return self._settings.portal_url
+
+    def ticket_url(self, ticket_id: int) -> str:
+        """A browser-openable deep link to the given ticket on this Halo instance."""
+        return f"{self.portal_url}/ticket?id={ticket_id}"
+
     async def __aenter__(self) -> HaloClient:
         return self
 

@@ -82,6 +82,14 @@ def _project_write(body: Any, model: type[Any]) -> Any:
     return body
 
 
+def _project_ticket_write(client: HaloClient, body: Any) -> Any:
+    """Project a ticket write response and attach its portal deep link."""
+    projected = _project_write(body, TicketSummary)
+    if isinstance(projected, dict) and projected.get("id") is not None:
+        projected["url"] = client.ticket_url(projected["id"])
+    return projected
+
+
 # Cap on tickets touched by a single bulk write, to bound accidental blast radius.
 _MAX_BULK = 50
 
@@ -123,12 +131,13 @@ async def _bulk_apply(client: HaloClient, ids: list[int], fields: dict[str, Any]
     results: list[dict[str, Any]] = []
     succeeded = 0
     for ticket_id in ids:
+        url = client.ticket_url(ticket_id)
         try:
             await client.post_update("/Tickets", {"id": ticket_id, **fields})
         except HaloAPIError as exc:
-            results.append({"id": ticket_id, "ok": False, "error": str(exc)})
+            results.append({"id": ticket_id, "url": url, "ok": False, "error": str(exc)})
             continue
-        results.append({"id": ticket_id, "ok": True})
+        results.append({"id": ticket_id, "url": url, "ok": True})
         succeeded += 1
     return {
         "ok": succeeded == len(ids),
@@ -180,7 +189,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
             }
         )
         created = await client.post("/Tickets", payload)
-        return {"ok": True, "ticket": _project_write(created, TicketSummary)}
+        return {"ok": True, "ticket": _project_ticket_write(client, created)}
 
     @mcp.tool
     async def update_ticket(
@@ -191,7 +200,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         if gate is not None:
             return gate
         updated = await client.post_update("/Tickets", {**fields, "id": id})
-        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+        return {"ok": True, "ticket": _project_ticket_write(client, updated)}
 
     @mcp.tool
     async def set_ticket_status(
@@ -202,7 +211,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         if gate is not None:
             return gate
         updated = await client.post_update("/Tickets", {"id": id, "status_id": status_id})
-        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+        return {"ok": True, "ticket": _project_ticket_write(client, updated)}
 
     @mcp.tool
     async def assign_ticket(
@@ -229,7 +238,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         updated = await client.post_update(
             "/Tickets", _clean({"id": id, "agent_id": agent_id, "team_id": team_id})
         )
-        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+        return {"ok": True, "ticket": _project_ticket_write(client, updated)}
 
     @mcp.tool
     async def set_ticket_priority(
@@ -240,7 +249,7 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         if gate is not None:
             return gate
         updated = await client.post_update("/Tickets", {"id": id, "priority_id": priority_id})
-        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+        return {"ok": True, "ticket": _project_ticket_write(client, updated)}
 
     @mcp.tool
     async def bulk_assign(
@@ -323,7 +332,11 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
             }
         )
         created = await client.post("/Actions", payload)
-        return {"ok": True, "action": _project_write(created, TicketActionSummary)}
+        return {
+            "ok": True,
+            "action": _project_write(created, TicketActionSummary),
+            "ticket_url": client.ticket_url(ticket_id),
+        }
 
     @mcp.tool
     async def update_client(

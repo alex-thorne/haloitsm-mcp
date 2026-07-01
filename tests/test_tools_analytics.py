@@ -115,6 +115,7 @@ async def test_list_overdue_tickets_flags_response_and_fix_breaches(
     by_id = {i["id"]: i for i in data["items"]}
     assert by_id[10]["response_overdue"] is True and by_id[10]["fix_overdue"] is False
     assert by_id[12]["fix_overdue"] is True and by_id[12]["response_overdue"] is False
+    assert by_id[10]["url"] == "https://halo.test/ticket?id=10"
     assert data["count"] == 2
 
 

@@ -82,10 +82,10 @@ def test_ticket_summary_trims_to_compact_fields() -> None:
         "lastactiondate": "2026-06-30T16:04:27.857",
         "category_1": "",
         "onhold": False,
+        # Not present on the raw Halo payload; attached later by tools/read.py
+        # and tools/write.py once the ticket id is known.
+        "url": None,
     }
-
-
-def test_ticket_summary_priority_name_absent_when_no_nested_priority() -> None:
     out = TicketSummary.project({"id": 1, "priority_id": 3})
     assert out["priority_id"] == 3
     assert out["priority_name"] is None

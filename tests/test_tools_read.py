@@ -58,6 +58,9 @@ async def test_list_tickets_projects_and_passes_filters(
     assert data["record_count"] == 2
     assert [t["id"] for t in data["items"]] == [1, 2]
     assert "details" not in data["items"][0] and "extra" not in data["items"][0]
+    # Ticket links resolve to the configured Halo instance, never the MCP repo.
+    assert data["items"][0]["url"] == "https://halo.test/ticket?id=1"
+    assert data["items"][1]["url"] == "https://halo.test/ticket?id=2"
     assert sink["params"]["status_id"] == "1"
     assert sink["params"]["client_id"] == "7"
     assert sink["params"]["search"] == "vpn"
@@ -123,6 +126,7 @@ async def test_get_ticket_without_actions(
     assert data["id"] == 55 and data["summary"] == "down"
     assert "details" not in data
     assert "actions" not in data
+    assert data["url"] == "https://halo.test/ticket?id=55"
 
 
 async def test_get_ticket_with_actions(
@@ -186,6 +190,7 @@ async def test_search_tickets(
     )
     data = await call(make_settings(), "search_tickets", {"query": "outlook crash"})
     assert [t["id"] for t in data["items"]] == [9]
+    assert data["items"][0]["url"] == "https://halo.test/ticket?id=9"
     assert sink["params"]["search"] == "outlook crash"
 
 
