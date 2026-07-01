@@ -1,6 +1,6 @@
 # halo-mcp
 
-A **local-first, harness-agnostic MCP server** that wraps the
+A **local-first MCP server** that wraps the
 [Halo ITSM](https://haloitsm.com/) REST API. It exposes a small set of typed
 tools (tickets, assets, clients, users, agents, lookups) to any MCP client —
 Claude Code, GitHub Copilot, Cursor — over **stdio**.
@@ -53,11 +53,6 @@ grant (machine-to-machine).
      running the smoke test and using whichever form returns a token.
    - `HALO_TENANT` = the Tenant value (only needed for the `?tenant=` form).
    - `HALO_CLIENT_ID` / `HALO_CLIENT_SECRET` from step 4.
-
-> **Assumption to confirm:** a dedicated service app using client-credentials
-> with scoped read permissions is the correct path for an unattended MCP server.
-> If your workflows need per-user context (acting *as* a specific agent), that
-> requires the authorization-code grant instead — out of scope here.
 
 ## Environment contract
 
