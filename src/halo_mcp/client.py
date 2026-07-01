@@ -35,6 +35,9 @@ _BACKOFF_BASE = 0.5
 _BACKOFF_JITTER = 0.5
 _DEFAULT_MAX_RETRIES = 4
 _DEFAULT_MAX_PAGES = 1000
+# Halo's REST API caps list responses at 100 rows/page regardless of the
+# requested page_size; requesting more silently truncates, so we clamp to match.
+HALO_MAX_PAGE_SIZE = 100
 
 AsyncSleep = Callable[[float], Awaitable[None]]
 
@@ -46,6 +49,18 @@ class HaloAPIError(Exception):
         self.status = status
         self.body = body
         super().__init__(f"Halo API request failed with status {status}.")
+
+
+class HaloForbiddenError(HaloAPIError):
+    """Raised on a 403 — typically the granted OAuth scopes omit this resource.
+
+    Carries the request ``path`` so callers can name the resource in a
+    scope-aware message without leaking the auth header or token.
+    """
+
+    def __init__(self, status: int, body: Any, path: str) -> None:
+        super().__init__(status, body)
+        self.path = path
 
 
 class HaloClient:
@@ -76,6 +91,11 @@ class HaloClient:
     def page_size(self) -> int:
         """Default list page size, from settings."""
         return self._settings.page_size
+
+    @property
+    def scopes(self) -> str:
+        """The configured OAuth scopes (non-secret), for scope-aware errors."""
+        return self._settings.scopes
 
     @property
     def long_timeout(self) -> float:
@@ -137,7 +157,10 @@ class HaloClient:
                 continue
             self._log_request(method, path, status, started, attempt, retry=False)
             if status >= httpx.codes.BAD_REQUEST:
-                raise HaloAPIError(status, _parse_body(response))
+                body = _parse_body(response)
+                if status == httpx.codes.FORBIDDEN:
+                    raise HaloForbiddenError(status, body, path)
+                raise HaloAPIError(status, body)
             return response
 
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
@@ -206,7 +229,7 @@ class HaloClient:
         the rows in a named ``collection_key`` alongside a ``record_count``. The
         ``pageinate`` flag (Halo's spelling) switches on server-side paging.
         """
-        size = page_size or self._settings.page_size
+        size = min(page_size or self._settings.page_size, HALO_MAX_PAGE_SIZE)
         records: list[dict[str, Any]] = []
         page_no = 1
         while page_no <= self._max_pages:
@@ -230,14 +253,19 @@ class HaloClient:
 
 
 def _extract_page(body: Any, collection_key: str) -> tuple[list[dict[str, Any]], int | None]:
-    """Pull the row list and record_count out of a Halo list response."""
+    """Pull the row list and record_count out of a Halo list response.
+
+    Halo's envelope key varies per endpoint (e.g. ``/Agent`` uses ``results``,
+    not ``agents``), so when the named key is absent we fall back to the first
+    list-valued field rather than silently returning nothing.
+    """
     if isinstance(body, list):
         return body, None
     if isinstance(body, dict):
-        rows = body.get(collection_key, [])
-        record_count = body.get("record_count")
+        rows = body.get(collection_key)
         if not isinstance(rows, list):
-            rows = []
+            rows = next((v for v in body.values() if isinstance(v, list)), [])
+        record_count = body.get("record_count")
         return rows, record_count if isinstance(record_count, int) else None
     return [], None
 

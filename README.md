@@ -65,14 +65,22 @@ grant (machine-to-machine).
 | `HALO_CLIENT_SECRET` | yes | From the registered API application |
 | `HALO_SCOPES` | no | Space-separated OAuth scopes; defaults to a least-privilege read set |
 | `HALO_ENABLE_WRITES` | no | `false` (default). Must be exactly `true` to register write tools |
-| `HALO_PAGE_SIZE` | no | Default `50`, max `1000` |
+| `HALO_PAGE_SIZE` | no | Default `50`, max `100` (Halo caps list responses at 100/page) |
 | `HALO_TIMEOUT` | no | httpx timeout in seconds, default `30` |
 | `HALO_LOG_LEVEL` | no | Log level for the `halo_mcp` logger: `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
 | `HALO_LOG_FORMAT` | no | `text` (default) or `json`; logs go to **stderr only** |
 | `HALO_LONG_TIMEOUT` | no | httpx timeout for heavy endpoints (e.g. reports), default `120` |
 
 Default read scopes:
-`read:tickets read:assets read:customers read:users read:agents`.
+`read:tickets read:assets read:customers` — a least-privilege read set. There is
+no `read:users`/`read:agents` scope (requesting either yields `invalid_scope`);
+that directory data needs no dedicated scope.
+
+Some optional tools (`list_suppliers`, `list_opportunities`, `list_invoices`,
+`list_appointments`) touch resources outside that default set. If your grant
+omits the required scope they return an `insufficient_scope` envelope — naming
+the path and your granted scopes — rather than a raw error. Widen `HALO_SCOPES`
+**and** the Halo application's permissions to enable them.
 
 When enabling writes, the operator must widen scopes (e.g. add `edit:tickets`)
 **and** grant the matching permissions on the Halo application. The server does
@@ -82,7 +90,7 @@ not auto-add edit scopes.
 
 **Read (always available):** `list_tickets`, `get_ticket`, `search_tickets`,
 `list_ticket_actions`, `list_assets`, `get_asset`, `list_clients`, `list_users`,
-`list_agents`, `list_teams`, `list_statuses`, `whoami`,
+`list_agents`, `get_agent`, `list_teams`, `list_statuses`, `whoami`,
 `list_sites`, `get_site`, `list_suppliers`, `get_supplier`, `list_ticket_types`,
 `list_projects`, `get_project`, `list_opportunities`, `get_opportunity`,
 `list_invoices`, `get_invoice`, `list_items`, `get_item`,

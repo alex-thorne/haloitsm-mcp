@@ -210,9 +210,11 @@ async def test_list_clients_users_agents_teams_statuses(
     respx_mock.get(api("Users")).mock(
         return_value=httpx.Response(200, json={"users": [{"id": 1, "name": "Sam"}]})
     )
-    # Halo's /Agent returns a bare array (no wrapper) — must still normalise.
+    # Halo's /Agent wraps its rows in a "results" envelope (not "agents").
     respx_mock.get(api("Agent")).mock(
-        return_value=httpx.Response(200, json=[{"id": 1, "name": "Tech", "email": "t@x"}])
+        return_value=httpx.Response(
+            200, json={"results": [{"id": 1, "name": "Tech", "email": "t@x"}]}
+        )
     )
     respx_mock.get(api("Team")).mock(
         return_value=httpx.Response(200, json=[{"id": 1, "name": "1st Line"}])
@@ -226,6 +228,67 @@ async def test_list_clients_users_agents_teams_statuses(
     assert [a["id"] for a in (await call(s, "list_agents", {}))["items"]] == [1]
     assert [t["id"] for t in (await call(s, "list_teams", {}))["items"]] == [1]
     assert [st["id"] for st in (await call(s, "list_statuses", {}))["items"]] == [1]
+
+
+async def test_get_agent_projects_single_record(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    respx_mock.get(api("Agent/12")).mock(
+        return_value=httpx.Response(
+            200, json={"id": 12, "name": "Anne", "email": "a@x", "extra": 1}
+        )
+    )
+    one = await call(make_settings(), "get_agent", {"id": 12})
+    assert one["id"] == 12 and one["name"] == "Anne" and "extra" not in one
+
+
+async def test_forbidden_read_returns_scope_error_envelope(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    respx_mock.get(api("Supplier")).mock(
+        return_value=httpx.Response(403, json={"error": "forbidden"})
+    )
+    res = await call(make_settings(), "list_suppliers", {})
+    assert res["error"] == "insufficient_scope"
+    assert "Supplier" in res["path"]
+    assert res["granted_scopes"] == "read:tickets read:assets read:customers"
+
+
+async def test_fetch_page_clamps_page_size_to_halo_max(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.get(api("Tickets")).mock(
+        side_effect=capturing({"record_count": 0, "tickets": []}, sink)
+    )
+    await call(make_settings(), "list_tickets", {"page_size": 500})
+    # Requesting more than Halo's 100-row cap must be clamped, not sent verbatim.
+    assert sink["params"]["page_size"] == "100"
+
+
+async def test_fetch_page_falls_back_to_first_list_envelope_key(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    # Envelope key differs from the tool's guess; rows must still be extracted.
+    respx_mock.get(api("Agent")).mock(
+        return_value=httpx.Response(
+            200, json={"record_count": 1, "data": [{"id": 7, "name": "X", "email": "e"}]}
+        )
+    )
+    listing = await call(make_settings(), "list_agents", {})
+    assert [a["id"] for a in listing["items"]] == [7]
 
 
 async def test_whoami_is_authenticated_probe(

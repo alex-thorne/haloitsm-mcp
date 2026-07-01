@@ -42,9 +42,10 @@ def test_required_fields_raise_when_missing() -> None:
 def test_page_size_is_bounded(make_settings: Callable[..., Settings]) -> None:
     with pytest.raises(ValidationError):
         make_settings(page_size=0)
+    # Halo caps list responses at 100 rows/page, so the setting is bounded to match.
     with pytest.raises(ValidationError):
-        make_settings(page_size=1001)
-    assert make_settings(page_size=1000).page_size == 1000
+        make_settings(page_size=101)
+    assert make_settings(page_size=100).page_size == 100
 
 
 def test_enable_writes_parses_truthy_strings(make_settings: Callable[..., Settings]) -> None:

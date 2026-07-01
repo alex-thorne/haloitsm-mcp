@@ -25,9 +25,9 @@ Read tools (always available):
 - list_ticket_actions, or get_ticket(include_actions=true) — the updates/notes
   recorded on a ticket.
 - list_assets / get_asset — configuration items and hardware.
-- list_clients, list_users, list_agents, list_teams, list_statuses — directory
-  and lookup data. Use list_statuses / list_teams to resolve names to ids before
-  filtering or writing.
+- list_clients, list_users, list_agents / get_agent, list_teams, list_statuses —
+  directory and lookup data. Use list_statuses / list_teams to resolve names to
+  ids before filtering or writing.
 - whoami — quick authenticated health check.
 - list_sites / get_site, list_suppliers / get_supplier, list_ticket_types —
   more directory and lookup data.

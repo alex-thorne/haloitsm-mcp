@@ -69,6 +69,49 @@ async def test_paginate_stops_at_hard_page_cap(
     assert len(records) == 5
 
 
+async def test_paginate_clamps_page_size_to_halo_max(
+    settings: Settings, stub_token: Any, respx_mock
+) -> None:  # noqa: ANN001
+    captured: dict[str, Any] = {}
+
+    def responder(request: httpx.Request) -> httpx.Response:
+        captured["page_size"] = request.url.params.get("page_size")
+        return httpx.Response(200, json={"record_count": 1, "tickets": [{"id": 1}]})
+
+    respx_mock.get(api("Tickets")).mock(side_effect=responder)
+    async with client_for(settings, stub_token) as client:
+        await client.paginate("/Tickets", collection_key="tickets", page_size=500)
+
+    # Halo caps list responses at 100/page; requesting more must be clamped.
+    assert captured["page_size"] == "100"
+
+
+async def test_paginate_falls_back_to_first_list_envelope_key(
+    settings: Settings, stub_token: Any, respx_mock
+) -> None:  # noqa: ANN001
+    def responder(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"record_count": 1, "results": [{"id": 5}]})
+
+    respx_mock.get(api("Agent")).mock(side_effect=responder)
+    async with client_for(settings, stub_token) as client:
+        records = await client.paginate("/Agent", collection_key="agents", page_size=50)
+
+    assert [r["id"] for r in records] == [5]
+
+
+async def test_forbidden_raises_typed_error_with_path(
+    settings: Settings, stub_token: Any, respx_mock
+) -> None:  # noqa: ANN001
+    from halo_mcp.client import HaloForbiddenError
+
+    respx_mock.get(api("Supplier")).mock(return_value=httpx.Response(403, json={"error": "no"}))
+    async with client_for(settings, stub_token) as client:
+        with pytest.raises(HaloForbiddenError) as exc:
+            await client.get("/Supplier")
+    assert exc.value.status == 403
+    assert "Supplier" in exc.value.path
+
+
 async def test_retries_on_503_with_backoff(settings: Settings, stub_token: Any, respx_mock) -> None:  # noqa: ANN001
     route = respx_mock.get(api("Status")).mock(
         side_effect=[httpx.Response(503), httpx.Response(200, json={"ok": True})]

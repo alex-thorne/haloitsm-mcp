@@ -14,7 +14,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..client import HaloClient
+from ..client import HALO_MAX_PAGE_SIZE, HaloClient, HaloForbiddenError
 from ..models import (
     AgentSummary,
     AppointmentSummary,
@@ -42,6 +42,24 @@ def _clean(params: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in params.items() if v is not None}
 
 
+def _scope_error(client: HaloClient, exc: HaloForbiddenError) -> dict[str, Any]:
+    """Turn a 403 into a compact, actionable envelope instead of a raw error.
+
+    The resource is outside the granted OAuth scopes; name the path and the
+    scopes we hold (non-secret) so the operator knows what to widen.
+    """
+    return {
+        "error": "insufficient_scope",
+        "message": (
+            "Halo returned 403 Forbidden for this resource. The granted OAuth scopes "
+            "likely do not cover it — widen HALO_SCOPES (and the Halo application's "
+            "permissions), then reload the server."
+        ),
+        "path": exc.path,
+        "granted_scopes": client.scopes,
+    }
+
+
 async def fetch_page(
     client: HaloClient,
     resource: str,
@@ -56,15 +74,27 @@ async def fetch_page(
     """Fetch one Halo list page and return a compact ``{record_count, page, items}``.
 
     Tolerates both wrapped responses (``{collection_key: [...], record_count}``)
-    and bare arrays (e.g. ``/Agent``).
+    and bare arrays (e.g. ``/Agent``). ``page_size`` is clamped to Halo's 100-row
+    cap. A 403 is returned as an ``insufficient_scope`` envelope, not raised.
     """
-    size = page_size or client.page_size
+    size = min(page_size or client.page_size, HALO_MAX_PAGE_SIZE)
     query = {**_clean(params or {}), "pageinate": True, "page_no": page, "page_size": size}
-    body = await client.get(resource, params=query, timeout=timeout)
+    try:
+        body = await client.get(resource, params=query, timeout=timeout)
+    except HaloForbiddenError as exc:
+        return _scope_error(client, exc)
     if isinstance(body, list):
-        rows, record_count = body, None
+        rows: list[Any] = body
+        record_count = None
     elif isinstance(body, dict):
-        rows = body.get(collection_key) or []
+        found = body.get(collection_key)
+        # Halo's envelope key varies per endpoint (e.g. /Agent -> "results"); fall
+        # back to the first list-valued field rather than returning nothing.
+        rows = (
+            found
+            if isinstance(found, list)
+            else next((v for v in body.values() if isinstance(v, list)), [])
+        )
         rc = body.get("record_count")
         record_count = rc if isinstance(rc, int) else None
     else:
@@ -76,7 +106,10 @@ async def fetch_one(
     client: HaloClient, resource: str, id: int, *, model: type[Any]
 ) -> dict[str, Any]:
     """Fetch a single Halo record by id and return its compact projection."""
-    body = await client.get(f"/{resource}/{id}")
+    try:
+        body = await client.get(f"/{resource}/{id}")
+    except HaloForbiddenError as exc:
+        return _scope_error(client, exc)
     return model.project(body) if isinstance(body, dict) else {}
 
 
@@ -225,11 +258,16 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
         return await fetch_page(
             client,
             "/Agent",
-            collection_key="agents",
+            collection_key="results",
             model=AgentSummary,
             params=_clean({"search": search}),
             page=page,
         )
+
+    @mcp.tool
+    async def get_agent(id: int) -> dict[str, Any]:
+        """Get a single Halo agent (technician) by id."""
+        return await fetch_one(client, "Agent", id, model=AgentSummary)
 
     @mcp.tool
     async def list_teams() -> dict[str, Any]:

@@ -50,7 +50,9 @@ class Settings(BaseSettings):
         default=False,
         description="Register write tools. Must be explicitly true to enable.",
     )
-    page_size: int = Field(default=50, ge=1, le=1000, description="Default list page size.")
+    page_size: int = Field(
+        default=50, ge=1, le=100, description="Default list page size (Halo caps responses at 100)."
+    )
     timeout: float = Field(default=30.0, gt=0, description="httpx request timeout in seconds.")
     long_timeout: float = Field(
         default=120.0,
