@@ -56,3 +56,50 @@ async def test_list_ticket_types(
     data = await call(make_settings(), "list_ticket_types", {})
     assert [t["id"] for t in data["items"]] == [1]
     assert "x" not in data["items"][0]
+
+
+async def test_list_priorities(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    respx_mock.get(api("Priority")).mock(
+        return_value=httpx.Response(
+            200, json=[{"priorityid": 4, "name": "P4-Low", "slaid": 8, "colour": "#fff"}]
+        )
+    )
+    data = await call(make_settings(), "list_priorities", {})
+    assert [p["priorityid"] for p in data["items"]] == [4]
+    assert "colour" not in data["items"][0]
+
+
+async def test_list_slas(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    respx_mock.get(api("Sla")).mock(
+        return_value=httpx.Response(200, json=[{"id": 1, "name": "Std", "junk": 1}])
+    )
+    data = await call(make_settings(), "list_slas", {})
+    assert [s["id"] for s in data["items"]] == [1]
+    assert "junk" not in data["items"][0]
+
+
+async def test_list_categories(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    respx_mock.get(api("Category")).mock(
+        return_value=httpx.Response(
+            200, json=[{"id": 16, "category_name": "Account Admin", "value": "AA", "junk": 1}]
+        )
+    )
+    data = await call(make_settings(), "list_categories", {})
+    assert [c["id"] for c in data["items"]] == [16]
+    assert data["items"][0]["category_name"] == "Account Admin"
+    assert "junk" not in data["items"][0]

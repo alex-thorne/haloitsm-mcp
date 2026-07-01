@@ -20,13 +20,16 @@ from ..models import (
     AppointmentSummary,
     AssetSummary,
     AttachmentSummary,
+    CategorySummary,
     ClientSummary,
     InvoiceSummary,
     ItemSummary,
     OpportunitySummary,
+    PrioritySummary,
     ProjectSummary,
     ReportSummary,
     SiteSummary,
+    SlaSummary,
     StatusSummary,
     SupplierSummary,
     TeamSummary,
@@ -278,6 +281,25 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     async def list_statuses() -> dict[str, Any]:
         """List ticket statuses (lookup, for resolving status names to ids)."""
         return await fetch_page(client, "/Status", collection_key="statuses", model=StatusSummary)
+
+    @mcp.tool
+    async def list_priorities() -> dict[str, Any]:
+        """List priorities with their SLA response/fix targets (lookup, resolves priority_id)."""
+        return await fetch_page(
+            client, "/Priority", collection_key="priorities", model=PrioritySummary
+        )
+
+    @mcp.tool
+    async def list_slas() -> dict[str, Any]:
+        """List SLAs and their working-hours calendar (lookup, resolves sla_id)."""
+        return await fetch_page(client, "/Sla", collection_key="slas", model=SlaSummary)
+
+    @mcp.tool
+    async def list_categories() -> dict[str, Any]:
+        """List ITIL categories (lookup, resolves category ids and request types)."""
+        return await fetch_page(
+            client, "/Category", collection_key="categories", model=CategorySummary
+        )
 
     @mcp.tool
     async def list_sites(

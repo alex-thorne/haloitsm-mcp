@@ -90,7 +90,8 @@ not auto-add edit scopes.
 
 **Read (always available):** `list_tickets`, `get_ticket`, `search_tickets`,
 `list_ticket_actions`, `list_assets`, `get_asset`, `list_clients`, `list_users`,
-`list_agents`, `get_agent`, `list_teams`, `list_statuses`, `whoami`,
+`list_agents`, `get_agent`, `list_teams`, `list_statuses`,
+`list_priorities`, `list_slas`, `list_categories`, `whoami`,
 `list_sites`, `get_site`, `list_suppliers`, `get_supplier`, `list_ticket_types`,
 `list_projects`, `get_project`, `list_opportunities`, `get_opportunity`,
 `list_invoices`, `get_invoice`, `list_items`, `get_item`,

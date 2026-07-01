@@ -28,6 +28,9 @@ Read tools (always available):
 - list_clients, list_users, list_agents / get_agent, list_teams, list_statuses —
   directory and lookup data. Use list_statuses / list_teams to resolve names to
   ids before filtering or writing.
+- list_priorities, list_slas, list_categories — resolve priority_id / sla_id /
+  category ids to names and SLA response/fix targets. Tickets carry priority,
+  type, SLA, first-response dates, user, site and category fields for triage.
 - whoami — quick authenticated health check.
 - list_sites / get_site, list_suppliers / get_supplier, list_ticket_types —
   more directory and lookup data.

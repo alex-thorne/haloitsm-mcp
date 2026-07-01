@@ -9,7 +9,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+# Halo represents an "unset" date with a 1899/1900 sentinel; treat those as None
+# so callers don't mistake them for real response/target dates.
+_UNSET_DATE_PREFIXES = ("1899", "1900-01-01")
+
+
+def _blank_sentinel_dates(data: dict[str, Any], keys: tuple[str, ...]) -> None:
+    """In-place: null out Halo's 1899/1900 sentinel dates for the given keys."""
+    for key in keys:
+        value = data.get(key)
+        if isinstance(value, str) and value.startswith(_UNSET_DATE_PREFIXES):
+            data[key] = None
 
 
 class _HaloModel(BaseModel):
@@ -31,21 +43,77 @@ class TicketSummary(_HaloModel):
     id: int
     summary: str | None = None
     status_id: int | None = None
+    tickettype_id: int | None = None
+    priority_id: int | None = None
+    priority_name: str | None = None  # flattened from the nested Halo priority object
     client_id: int | None = None
     client_name: str | None = None
+    user_id: int | None = None
+    user_name: str | None = None
+    site_id: int | None = None
+    site_name: str | None = None
     agent_id: int | None = None
     team: str | None = None
+    team_id: int | None = None
+    sla_id: int | None = None
+    sla_name: str | None = None
+    slaresponsestate: str | None = None  # Halo first-response SLA state code
+    respondbydate: str | None = None  # first-response SLA deadline
+    responsedate: str | None = None  # first actual response
+    targetdate: str | None = None  # fix-by / resolution SLA deadline
+    fixbydate: str | None = None
     # Halo's logged/created date for the ticket (ISO-8601 string).
     dateoccurred: str | None = None
+    datecreated: str | None = None
+    last_update: str | None = None
+    lastactiondate: str | None = None
+    category_1: str | None = None
+    onhold: bool | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _flatten_and_clean(cls, raw: Any) -> Any:
+        """Flatten the nested priority name and null Halo's sentinel dates."""
+        if not isinstance(raw, dict):
+            return raw
+        data = dict(raw)
+        priority = data.get("priority")
+        if isinstance(priority, dict) and data.get("priority_name") is None:
+            data["priority_name"] = priority.get("name")
+        _blank_sentinel_dates(
+            data,
+            (
+                "respondbydate",
+                "responsedate",
+                "targetdate",
+                "fixbydate",
+                "datecreated",
+                "last_update",
+                "lastactiondate",
+                "dateoccurred",
+            ),
+        )
+        return data
 
 
 class TicketActionSummary(_HaloModel):
     id: int
     ticket_id: int | None = None
     outcome: str | None = None
+    outcome_id: int | None = None
     note: str | None = None
     who: str | None = None
+    who_type: int | None = None
     datetime: str | None = None
+    timetaken: float | None = None
+    old_status: int | None = None
+    new_status: int | None = None
+    new_status_name: str | None = None
+    emaildirection: str | None = None  # 'I' inbound / 'O' outbound — support channel signal
+    email_status: int | None = None
+    important: bool | None = None
+    hiddenfromuser: bool | None = None  # private (agent-only) vs client-visible note
+    attachment_count: int | None = None
 
 
 class ClientSummary(_HaloModel):
@@ -146,3 +214,33 @@ class OpportunitySummary(_HaloModel):
 class ReportSummary(_HaloModel):
     id: int
     name: str | None = None
+
+
+class PrioritySummary(_HaloModel):
+    priorityid: int | None = None
+    name: str | None = None
+    responsetime: float | None = None
+    responseunits: str | None = None
+    fixtime: float | None = None
+    fixunits: str | None = None
+    slaid: int | None = None
+    ishidden: bool | None = None
+
+
+class SlaSummary(_HaloModel):
+    id: int
+    name: str | None = None
+    workday_id: int | None = None
+    trackslaresponsetime: bool | None = None
+    trackslafixbytime: bool | None = None
+
+
+class CategorySummary(_HaloModel):
+    id: int
+    category_name: str | None = None
+    value: str | None = None
+    itilrequesttype: int | None = None
+    sla_id: int | None = None
+    priority_id: int | None = None
+    type_id: int | None = None
+    category_group_id: int | None = None
