@@ -20,8 +20,12 @@ Halo ITSM tools wrap a Halo IT Service Management instance over its REST API.
 
 Read tools (always available):
 - list_tickets / search_tickets / get_ticket — find and inspect tickets; filter
-  by status, client, agent, team, free text, or creation date (created_since /
-  created_before).
+  by status, client, agent, team, free text, creation date (created_since /
+  created_before), or open_only=true for just the open backlog.
+- summarise_tickets — group ticket counts by one dimension (status, type,
+  priority_id, team, agent, client, site, category) with backlog age stats.
+  list_overdue_tickets — open tickets past their first-response or fix SLA
+  deadline (excludes SLA-exempt tickets).
 - list_ticket_actions, or get_ticket(include_actions=true) — the updates/notes
   recorded on a ticket.
 - list_assets / get_asset — configuration items and hardware.

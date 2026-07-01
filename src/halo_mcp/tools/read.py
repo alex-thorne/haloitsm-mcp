@@ -10,6 +10,8 @@ with the smoke test so it exercises the exact same code path.
 
 from __future__ import annotations
 
+import collections
+from datetime import datetime
 from typing import Any
 
 from fastmcp import FastMCP
@@ -123,6 +125,83 @@ async def whoami_query(client: HaloClient) -> dict[str, Any]:
     return {"authenticated": True, "ticket_record_count": record_count}
 
 
+# Ticket dimensions summarise_tickets can group by. Limited to fields the Halo
+# *list* view reliably returns (priority_name/slaresponsestate come only from a
+# single-ticket fetch, so grouping on them over list data would be all-None).
+_ALLOWED_GROUP_BY = frozenset(
+    {
+        "status_id",
+        "tickettype_id",
+        "priority_id",
+        "team",
+        "team_id",
+        "agent_id",
+        "client_id",
+        "client_name",
+        "site_name",
+        "category_1",
+    }
+)
+_BREACH_MODES = frozenset({"any", "response", "fix"})
+
+
+def _ticket_params(
+    *,
+    status: int | None = None,
+    client_id: int | None = None,
+    agent_id: int | None = None,
+    team: str | None = None,
+    search: str | None = None,
+    created_since: str | None = None,
+    created_before: str | None = None,
+    open_only: bool = False,
+) -> dict[str, Any]:
+    """Build the Halo /Tickets query params shared by the list/analytics tools."""
+    # Only name the date field when a bound is given, so unfiltered calls send no
+    # date params at all.
+    date_field = "dateoccurred" if (created_since or created_before) else None
+    params = _clean(
+        {
+            "status_id": status,
+            "client_id": client_id,
+            "agent_id": agent_id,
+            "team": team,
+            "search": search,
+            "datesearch": date_field,
+            "startdate": created_since,
+            "enddate": created_before,
+        }
+    )
+    if open_only:
+        params["open_only"] = True
+    return params
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    """Parse a Halo ISO-8601 date string, or None if absent/unparseable."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", ""))
+    except ValueError:
+        return None
+
+
+def _age_days(rows: list[dict[str, Any]], now: datetime) -> dict[str, int] | None:
+    """Descriptive age stats (days since dateoccurred) over projected rows."""
+    ages = sorted(
+        (now - d).days for d in (_parse_dt(r.get("dateoccurred")) for r in rows) if d is not None
+    )
+    if not ages:
+        return None
+    return {
+        "min": ages[0],
+        "median": ages[len(ages) // 2],
+        "max": ages[-1],
+        "mean": round(sum(ages) / len(ages)),
+    }
+
+
 def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
     """Register the always-on read tools on ``mcp``."""
 
@@ -133,31 +212,30 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
         agent_id: int | None = None,
         team: str | None = None,
         search: str | None = None,
+        open_only: bool = False,
         created_since: str | None = None,
         created_before: str | None = None,
         page: int = 1,
         page_size: int | None = None,
     ) -> dict[str, Any]:
-        """List Halo tickets, filtered by status, client, agent, team, free text or creation date.
+        """List Halo tickets, filtered by status, client, agent, team, free text,
+        creation date, or open_only.
 
-        ``created_since`` / ``created_before`` take an ISO-8601 date or datetime
-        (e.g. ``2026-06-16`` or ``2026-06-16T00:00:00``) and filter on the
-        ticket's logged date (Halo ``dateoccurred``), server-side.
+        ``open_only=true`` returns just the open backlog; by default Halo returns
+        open plus recently-closed tickets. ``created_since`` / ``created_before``
+        take an ISO-8601 date or datetime (e.g. ``2026-06-16`` or
+        ``2026-06-16T00:00:00``) and filter on the ticket's logged date (Halo
+        ``dateoccurred``), server-side.
         """
-        # Only name the date field when a bound is given, so unfiltered calls
-        # send no date params at all.
-        date_field = "dateoccurred" if (created_since or created_before) else None
-        params = _clean(
-            {
-                "status_id": status,
-                "client_id": client_id,
-                "agent_id": agent_id,
-                "team": team,
-                "search": search,
-                "datesearch": date_field,
-                "startdate": created_since,
-                "enddate": created_before,
-            }
+        params = _ticket_params(
+            status=status,
+            client_id=client_id,
+            agent_id=agent_id,
+            team=team,
+            search=search,
+            created_since=created_since,
+            created_before=created_before,
+            open_only=open_only,
         )
         return await fetch_page(
             client,
@@ -196,6 +274,135 @@ def register_read_tools(mcp: FastMCP, client: HaloClient) -> None:
             params={"search": query},
             page=page,
         )
+
+    @mcp.tool
+    async def summarise_tickets(
+        group_by: str = "status_id",
+        status: int | None = None,
+        client_id: int | None = None,
+        agent_id: int | None = None,
+        team: str | None = None,
+        open_only: bool = False,
+        created_since: str | None = None,
+        created_before: str | None = None,
+        max_records: int = 5000,
+    ) -> dict[str, Any]:
+        """Aggregate tickets into counts by one dimension, with backlog age stats.
+
+        ``group_by`` is one of: status_id, tickettype_id, priority_id,
+        priority_name, team, team_id, agent_id, client_id, client_name,
+        slaresponsestate, site_name, category_1. Walks every matching page (up to
+        ``max_records``) and returns ``{total, group_by, groups, age_days}``.
+        Resolve ids to names with the matching lookup tool (list_statuses,
+        list_priorities, list_agents, …).
+        """
+        if group_by not in _ALLOWED_GROUP_BY:
+            return {
+                "error": "invalid_group_by",
+                "message": "group_by must be one of the supported ticket dimensions.",
+                "allowed": sorted(_ALLOWED_GROUP_BY),
+            }
+        params = _ticket_params(
+            status=status,
+            client_id=client_id,
+            agent_id=agent_id,
+            team=team,
+            created_since=created_since,
+            created_before=created_before,
+            open_only=open_only,
+        )
+        try:
+            raw = await client.paginate(
+                "/Tickets", collection_key="tickets", params=params, max_records=max_records
+            )
+        except HaloForbiddenError as exc:
+            return _scope_error(client, exc)
+        rows = TicketSummary.project_many(raw)
+        counts = collections.Counter(
+            r.get(group_by) if r.get(group_by) not in (None, "") else None for r in rows
+        )
+        groups = [{"value": value, "count": count} for value, count in counts.most_common()]
+        return {
+            "total": len(rows),
+            "group_by": group_by,
+            "groups": groups,
+            "age_days": _age_days(rows, datetime.now()),
+        }
+
+    @mcp.tool
+    async def list_overdue_tickets(
+        breach: str = "any",
+        team: str | None = None,
+        client_id: int | None = None,
+        agent_id: int | None = None,
+        max_records: int = 2000,
+    ) -> dict[str, Any]:
+        """List OPEN tickets past an SLA deadline, most overdue first.
+
+        ``response_overdue`` = the first-response deadline (respondbydate) has
+        passed with no first response logged in time (responsedate missing or
+        later than the deadline). ``fix_overdue`` = the fix-by / target deadline
+        has passed. Tickets flagged ``excludefromsla`` are skipped and Halo's
+        1899/1900 "unset" dates count as no deadline. ``breach`` selects which to
+        check: "response", "fix", or "any" (default).
+        """
+        if breach not in _BREACH_MODES:
+            return {
+                "error": "invalid_breach",
+                "message": "breach must be one of: any, response, fix.",
+                "allowed": sorted(_BREACH_MODES),
+            }
+        params = _ticket_params(team=team, client_id=client_id, agent_id=agent_id, open_only=True)
+        try:
+            raw = await client.paginate(
+                "/Tickets", collection_key="tickets", params=params, max_records=max_records
+            )
+        except HaloForbiddenError as exc:
+            return _scope_error(client, exc)
+        now = datetime.now()
+        items: list[dict[str, Any]] = []
+        for r in TicketSummary.project_many(raw):
+            if r.get("excludefromsla"):
+                continue
+            respond_by = _parse_dt(r.get("respondbydate"))
+            responded = _parse_dt(r.get("responsedate"))
+            fix_by = _parse_dt(r.get("targetdate")) or _parse_dt(r.get("fixbydate"))
+            response_overdue = bool(
+                respond_by and respond_by < now and (responded is None or responded > respond_by)
+            )
+            fix_overdue = bool(fix_by and fix_by < now)
+            if breach == "response" and not response_overdue:
+                continue
+            if breach == "fix" and not fix_overdue:
+                continue
+            if breach == "any" and not (response_overdue or fix_overdue):
+                continue
+            occurred = _parse_dt(r.get("dateoccurred"))
+            items.append(
+                {
+                    "id": r["id"],
+                    "summary": r.get("summary"),
+                    "status_id": r.get("status_id"),
+                    "priority_id": r.get("priority_id"),
+                    "team": r.get("team"),
+                    "agent_id": r.get("agent_id"),
+                    "client_name": r.get("client_name"),
+                    "onhold": r.get("onhold"),
+                    "respondbydate": r.get("respondbydate"),
+                    "responsedate": r.get("responsedate"),
+                    "targetdate": r.get("targetdate"),
+                    "response_overdue": response_overdue,
+                    "fix_overdue": fix_overdue,
+                    "age_days": (now - occurred).days if occurred else None,
+                }
+            )
+        items.sort(key=lambda i: i["age_days"] if i["age_days"] is not None else -1, reverse=True)
+        return {
+            "now": now.isoformat(timespec="seconds"),
+            "breach": breach,
+            "count": len(items),
+            "items": items,
+        }
 
     @mcp.tool
     async def list_ticket_actions(ticket_id: int, page: int = 1) -> dict[str, Any]:

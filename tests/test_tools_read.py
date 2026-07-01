@@ -146,6 +146,34 @@ async def test_get_ticket_with_actions(
     assert actions_sink["params"]["ticket_id"] == "55"
 
 
+async def test_list_tickets_open_only_filter(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.get(api("Tickets")).mock(
+        side_effect=capturing({"record_count": 0, "tickets": []}, sink)
+    )
+    await call(make_settings(), "list_tickets", {"open_only": True})
+    assert sink["params"]["open_only"].lower() == "true"
+
+
+async def test_list_tickets_omits_open_only_by_default(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.get(api("Tickets")).mock(
+        side_effect=capturing({"record_count": 0, "tickets": []}, sink)
+    )
+    await call(make_settings(), "list_tickets", {})
+    assert "open_only" not in sink["params"]
+
+
 async def test_search_tickets(
     make_settings: Callable[..., Settings],
     respx_mock,

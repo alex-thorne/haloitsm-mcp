@@ -72,6 +72,7 @@ def test_ticket_summary_trims_to_compact_fields() -> None:
         "slaresponsestate": "I",
         "respondbydate": "2026-07-01T09:00:00",
         "responsedate": "2026-06-30T16:04:27.21",
+        "excludefromsla": None,
         # Halo's 1899/1900 sentinel "unset" dates are nulled.
         "targetdate": None,
         "fixbydate": None,

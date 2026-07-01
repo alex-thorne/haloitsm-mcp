@@ -89,6 +89,7 @@ not auto-add edit scopes.
 ## Tools
 
 **Read (always available):** `list_tickets`, `get_ticket`, `search_tickets`,
+`summarise_tickets`, `list_overdue_tickets`,
 `list_ticket_actions`, `list_assets`, `get_asset`, `list_clients`, `list_users`,
 `list_agents`, `get_agent`, `list_teams`, `list_statuses`,
 `list_priorities`, `list_slas`, `list_categories`, `whoami`,

@@ -58,6 +58,7 @@ class TicketSummary(_HaloModel):
     sla_id: int | None = None
     sla_name: str | None = None
     slaresponsestate: str | None = None  # Halo first-response SLA state code
+    excludefromsla: bool | None = None
     respondbydate: str | None = None  # first-response SLA deadline
     responsedate: str | None = None  # first actual response
     targetdate: str | None = None  # fix-by / resolution SLA deadline
