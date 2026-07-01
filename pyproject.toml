@@ -21,7 +21,7 @@ halo-mcp-smoke = "halo_mcp.smoke:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3,<9.0",
+    "pytest>=9.0.3,<10.0",
     "pytest-asyncio>=0.25",
     "respx>=0.22,<0.23",
     "ruff>=0.9,<1.0",
