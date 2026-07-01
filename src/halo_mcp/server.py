@@ -47,10 +47,11 @@ Read tools (always available):
 Results are compact projections (ids + key fields), not full Halo records. List
 tools return {record_count, page, items}; page with page / page_size.
 
-Write tools (create_ticket, update_ticket, add_action, set_ticket_status) exist
-only when the operator has enabled writes. They require confirm=true and, on
-hosts that support it, an interactive confirmation. Updates always carry the
-record id — Halo upserts on POST, so omitting the id creates a duplicate.
+Write tools (create_ticket, update_ticket, add_action, set_ticket_status,
+assign_ticket, set_ticket_priority) exist only when the operator has enabled
+writes. They require confirm=true and, on hosts that support it, an interactive
+confirmation. Updates always carry the record id — Halo upserts on POST, so
+omitting the id creates a duplicate.
 """
 
 

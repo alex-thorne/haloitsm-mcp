@@ -93,8 +93,18 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         confirm: bool,
         ctx: Context,
         ticket_type: int | None = None,
+        priority_id: int | None = None,
+        agent_id: int | None = None,
+        team_id: int | None = None,
+        site_id: int | None = None,
+        user_id: int | None = None,
+        category_1: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new Halo ticket. Requires confirm=true."""
+        """Create a new Halo ticket. Requires confirm=true.
+
+        Optionally set priority, assignment (agent_id/team_id), site, requester
+        (user_id) and category. Resolve ids with the read lookup tools first.
+        """
         prompt = f"Create a new ticket for client {client_id}: {summary!r}?"
         gate = await _gate(ctx, confirm, prompt)
         if gate is not None:
@@ -105,6 +115,12 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
                 "details": details,
                 "client_id": client_id,
                 "tickettype_id": ticket_type,
+                "priority_id": priority_id,
+                "agent_id": agent_id,
+                "team_id": team_id,
+                "site_id": site_id,
+                "user_id": user_id,
+                "category_1": category_1,
             }
         )
         created = await client.post("/Tickets", payload)
@@ -133,18 +149,72 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
         return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
 
     @mcp.tool
+    async def assign_ticket(
+        id: int,
+        confirm: bool,
+        ctx: Context,
+        agent_id: int | None = None,
+        team_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Assign a ticket to an agent and/or team (id required). Requires confirm=true.
+
+        Provide agent_id, team_id, or both. Resolve ids with list_agents /
+        list_teams first.
+        """
+        if agent_id is None and team_id is None:
+            return {
+                "ok": False,
+                "reason": "nothing_to_assign",
+                "message": "Provide agent_id and/or team_id.",
+            }
+        gate = await _gate(ctx, confirm, f"Assign ticket {id} to agent={agent_id}, team={team_id}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update(
+            "/Tickets", _clean({"id": id, "agent_id": agent_id, "team_id": team_id})
+        )
+        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+
+    @mcp.tool
+    async def set_ticket_priority(
+        id: int, priority_id: int, confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Set a ticket's priority (id required). Requires confirm=true."""
+        gate = await _gate(ctx, confirm, f"Set ticket {id} to priority {priority_id}?")
+        if gate is not None:
+            return gate
+        updated = await client.post_update("/Tickets", {"id": id, "priority_id": priority_id})
+        return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+
+    @mcp.tool
     async def add_action(
         ticket_id: int,
         note: str,
         confirm: bool,
         ctx: Context,
         outcome: str | None = None,
+        outcome_id: int | None = None,
+        new_status: int | None = None,
+        hidden_from_user: bool | None = None,
     ) -> dict[str, Any]:
-        """Add an action (note/update) to a ticket. Requires confirm=true."""
+        """Add an action (note/update) to a ticket. Requires confirm=true.
+
+        Set hidden_from_user=true for a private, agent-only note; pass new_status
+        to change the ticket's status as part of the same update.
+        """
         gate = await _gate(ctx, confirm, f"Add an action to ticket {ticket_id}?")
         if gate is not None:
             return gate
-        payload = _clean({"ticket_id": ticket_id, "note": note, "outcome": outcome})
+        payload = _clean(
+            {
+                "ticket_id": ticket_id,
+                "note": note,
+                "outcome": outcome,
+                "outcome_id": outcome_id,
+                "new_status": new_status,
+                "hiddenfromuser": hidden_from_user,
+            }
+        )
         created = await client.post("/Actions", payload)
         return {"ok": True, "action": _project_write(created, TicketActionSummary)}
 

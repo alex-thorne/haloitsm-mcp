@@ -20,7 +20,14 @@ from halo_mcp.server import build_server
 
 from .conftest import TEST_API_URL
 
-WRITE_TOOLS = {"create_ticket", "update_ticket", "add_action", "set_ticket_status"}
+WRITE_TOOLS = {
+    "create_ticket",
+    "update_ticket",
+    "add_action",
+    "set_ticket_status",
+    "assign_ticket",
+    "set_ticket_priority",
+}
 
 
 def api(path: str) -> str:
@@ -97,6 +104,8 @@ async def test_create_refused_without_confirm(make_settings: Callable[..., Setti
         ("update_ticket", {"id": 5, "fields": {"summary": "x"}}),
         ("set_ticket_status", {"id": 5, "status_id": 9}),
         ("add_action", {"ticket_id": 7, "note": "hi"}),
+        ("assign_ticket", {"id": 5, "agent_id": 3}),
+        ("set_ticket_priority", {"id": 5, "priority_id": 2}),
     ],
 )
 async def test_every_write_tool_refuses_without_confirm(
@@ -188,6 +197,129 @@ async def test_add_action_posts_note(
     assert data["ok"] is True
     assert data["action"]["id"] == 11
     assert sink["body"] == {"ticket_id": 7, "note": "hello", "outcome": "Resolved"}
+
+
+async def test_assign_ticket_sends_id_agent_and_team(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.post(api("Tickets")).mock(
+        side_effect=body_capture(sink, {"id": 5, "agent_id": 3, "team_id": 2})
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "assign_ticket",
+        {"id": 5, "agent_id": 3, "team_id": 2, "confirm": True},
+    )
+    assert data["ok"] is True
+    assert sink["body"] == {"id": 5, "agent_id": 3, "team_id": 2}
+
+
+async def test_assign_ticket_requires_a_target(make_settings: Callable[..., Settings]) -> None:
+    # No Halo routes registered: a no-op assign must refuse before any request.
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "assign_ticket",
+        {"id": 5, "confirm": True},
+    )
+    assert data["ok"] is False
+    assert data["reason"] == "nothing_to_assign"
+
+
+async def test_set_ticket_priority_sends_id_and_priority(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.post(api("Tickets")).mock(
+        side_effect=body_capture(sink, {"id": 5, "priority_id": 2})
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "set_ticket_priority",
+        {"id": 5, "priority_id": 2, "confirm": True},
+    )
+    assert data["ok"] is True
+    assert sink["body"] == {"id": 5, "priority_id": 2}
+
+
+async def test_create_ticket_with_full_triage_fields(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.post(api("Tickets")).mock(
+        side_effect=body_capture(sink, {"id": 100, "summary": "s"})
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "create_ticket",
+        {
+            "summary": "s",
+            "details": "d",
+            "client_id": 3,
+            "ticket_type": 2,
+            "priority_id": 1,
+            "agent_id": 4,
+            "team_id": 5,
+            "site_id": 6,
+            "user_id": 7,
+            "category_1": "Network",
+            "confirm": True,
+        },
+    )
+    assert data["ok"] is True
+    assert sink["body"] == {
+        "summary": "s",
+        "details": "d",
+        "client_id": 3,
+        "tickettype_id": 2,
+        "priority_id": 1,
+        "agent_id": 4,
+        "team_id": 5,
+        "site_id": 6,
+        "user_id": 7,
+        "category_1": "Network",
+    }
+
+
+async def test_add_action_private_note_with_status_change(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    sink: dict[str, Any] = {}
+    respx_mock.post(api("Actions")).mock(
+        side_effect=body_capture(sink, {"id": 11, "ticket_id": 7, "note": "n"})
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "add_action",
+        {
+            "ticket_id": 7,
+            "note": "n",
+            "hidden_from_user": True,
+            "new_status": 2,
+            "outcome_id": 5,
+            "confirm": True,
+        },
+    )
+    assert data["ok"] is True
+    assert sink["body"] == {
+        "ticket_id": 7,
+        "note": "n",
+        "hiddenfromuser": True,
+        "new_status": 2,
+        "outcome_id": 5,
+    }
 
 
 # --- elicitation: capability-checked, with confirm-flag fallback ----------
