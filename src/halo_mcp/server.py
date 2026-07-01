@@ -51,7 +51,9 @@ Write tools (create_ticket, update_ticket, add_action, set_ticket_status,
 assign_ticket, set_ticket_priority) exist only when the operator has enabled
 writes. They require confirm=true and, on hosts that support it, an interactive
 confirmation. Updates always carry the record id — Halo upserts on POST, so
-omitting the id creates a duplicate.
+omitting the id creates a duplicate. bulk_assign / bulk_set_status apply one
+change across many tickets behind the same gate, capped at 50 per call and
+returning per-ticket results.
 """
 
 

@@ -27,6 +27,8 @@ WRITE_TOOLS = {
     "set_ticket_status",
     "assign_ticket",
     "set_ticket_priority",
+    "bulk_assign",
+    "bulk_set_status",
 }
 
 
@@ -56,6 +58,21 @@ def body_capture(
     def responder(request: httpx.Request) -> httpx.Response:
         sink["body"] = json.loads(request.content)
         return httpx.Response(200, json=response_json)
+
+    return responder
+
+
+def bulk_responder(
+    sink: list[dict[str, Any]], fail_ids: frozenset[int] = frozenset()
+) -> Callable[[httpx.Request], httpx.Response]:
+    """Record every POST body; fail (HTTP 400) for ids in ``fail_ids``."""
+
+    def responder(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        sink.append(body)
+        if body.get("id") in fail_ids:
+            return httpx.Response(400, json={"error": "bad"})
+        return httpx.Response(200, json={"id": body.get("id")})
 
     return responder
 
@@ -106,6 +123,8 @@ async def test_create_refused_without_confirm(make_settings: Callable[..., Setti
         ("add_action", {"ticket_id": 7, "note": "hi"}),
         ("assign_ticket", {"id": 5, "agent_id": 3}),
         ("set_ticket_priority", {"id": 5, "priority_id": 2}),
+        ("bulk_assign", {"ticket_ids": [1, 2], "agent_id": 3}),
+        ("bulk_set_status", {"ticket_ids": [1, 2], "status_id": 9}),
     ],
 )
 async def test_every_write_tool_refuses_without_confirm(
@@ -320,6 +339,98 @@ async def test_add_action_private_note_with_status_change(
         "new_status": 2,
         "outcome_id": 5,
     }
+
+
+# --- bulk triage: extra guards (cap, empty, dedupe, per-item results) ------
+
+
+async def test_bulk_assign_updates_each_by_id(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    bodies: list[dict[str, Any]] = []
+    respx_mock.post(api("Tickets")).mock(side_effect=bulk_responder(bodies))
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_assign",
+        {"ticket_ids": [1, 2, 3], "team_id": 5, "confirm": True},
+    )
+    assert data["ok"] is True
+    assert data["succeeded"] == 3 and data["failed"] == 0
+    assert sorted(b["id"] for b in bodies) == [1, 2, 3]
+    assert all(b["team_id"] == 5 for b in bodies)
+    assert [r["id"] for r in data["results"]] == [1, 2, 3]
+
+
+async def test_bulk_assign_dedupes_ids(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    bodies: list[dict[str, Any]] = []
+    respx_mock.post(api("Tickets")).mock(side_effect=bulk_responder(bodies))
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_assign",
+        {"ticket_ids": [1, 1, 2], "agent_id": 4, "confirm": True},
+    )
+    assert data["succeeded"] == 2
+    assert sorted(b["id"] for b in bodies) == [1, 2]
+
+
+async def test_bulk_assign_requires_a_target(make_settings: Callable[..., Settings]) -> None:
+    # No routes registered: refuses before any write.
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_assign",
+        {"ticket_ids": [1, 2], "confirm": True},
+    )
+    assert data["ok"] is False and data["reason"] == "nothing_to_assign"
+
+
+async def test_bulk_empty_batch_refused(make_settings: Callable[..., Settings]) -> None:
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_set_status",
+        {"ticket_ids": [], "status_id": 9, "confirm": True},
+    )
+    assert data["ok"] is False and data["reason"] == "empty_batch"
+
+
+async def test_bulk_batch_too_large_refused(make_settings: Callable[..., Settings]) -> None:
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_set_status",
+        {"ticket_ids": list(range(1, 52)), "status_id": 9, "confirm": True},
+    )
+    assert data["ok"] is False and data["reason"] == "batch_too_large"
+
+
+async def test_bulk_set_status_reports_partial_failure(
+    make_settings: Callable[..., Settings],
+    respx_mock,
+    mock_token,  # noqa: ANN001
+) -> None:
+    mock_token()
+    bodies: list[dict[str, Any]] = []
+    respx_mock.post(api("Tickets")).mock(
+        side_effect=bulk_responder(bodies, fail_ids=frozenset({2}))
+    )
+    data = await run_tool(
+        make_settings(enable_writes=True),
+        "bulk_set_status",
+        {"ticket_ids": [1, 2, 3], "status_id": 9, "confirm": True},
+    )
+    # The batch continues past a failing id and reports it, rather than aborting.
+    assert data["ok"] is False
+    assert data["succeeded"] == 2 and data["failed"] == 1
+    by_id = {r["id"]: r for r in data["results"]}
+    assert by_id[1]["ok"] is True
+    assert by_id[2]["ok"] is False and "error" in by_id[2]
+    assert by_id[3]["ok"] is True
 
 
 # --- elicitation: capability-checked, with confirm-flag fallback ----------

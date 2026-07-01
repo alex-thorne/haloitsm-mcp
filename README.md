@@ -100,7 +100,7 @@ not auto-add edit scopes.
 
 **Write (only when `HALO_ENABLE_WRITES=true`):** `create_ticket`,
 `update_ticket`, `add_action`, `set_ticket_status`, `assign_ticket`,
-`set_ticket_priority`,
+`set_ticket_priority`, `bulk_assign`, `bulk_set_status`,
 `update_client`, `update_user`, `create_site`, `update_site`,
 `create_asset`, `update_asset`.
 Each takes a required `confirm` and refuses unless it is `true`; on hosts that

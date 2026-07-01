@@ -17,7 +17,7 @@ from typing import Any
 
 from fastmcp import Context, FastMCP
 
-from ..client import HaloClient
+from ..client import HaloAPIError, HaloClient
 from ..models import (
     AssetSummary,
     ClientSummary,
@@ -80,6 +80,62 @@ def _project_write(body: Any, model: type[Any]) -> Any:
     if isinstance(body, dict) and body.get("id") is not None:
         return model.project(body)
     return body
+
+
+# Cap on tickets touched by a single bulk write, to bound accidental blast radius.
+_MAX_BULK = 50
+
+
+def _dedupe(ids: list[int]) -> list[int]:
+    """Preserve order while dropping duplicate ids."""
+    seen: set[int] = set()
+    out: list[int] = []
+    for i in ids:
+        if i not in seen:
+            seen.add(i)
+            out.append(i)
+    return out
+
+
+def _bulk_guard(ids: list[int]) -> dict[str, Any] | None:
+    """Refuse empty or oversized batches before any confirmation or write."""
+    if not ids:
+        return {
+            "ok": False,
+            "reason": "empty_batch",
+            "message": "Provide at least one ticket id.",
+        }
+    if len(ids) > _MAX_BULK:
+        return {
+            "ok": False,
+            "reason": "batch_too_large",
+            "message": f"Batch of {len(ids)} exceeds the {_MAX_BULK}-ticket limit; split it up.",
+        }
+    return None
+
+
+async def _bulk_apply(client: HaloClient, ids: list[int], fields: dict[str, Any]) -> dict[str, Any]:
+    """Apply the same update to each id, collecting per-item results.
+
+    A single failing ticket is recorded and the batch continues, so one bad id
+    never sinks the rest. Each update carries an explicit id via post_update.
+    """
+    results: list[dict[str, Any]] = []
+    succeeded = 0
+    for ticket_id in ids:
+        try:
+            await client.post_update("/Tickets", {"id": ticket_id, **fields})
+        except HaloAPIError as exc:
+            results.append({"id": ticket_id, "ok": False, "error": str(exc)})
+            continue
+        results.append({"id": ticket_id, "ok": True})
+        succeeded += 1
+    return {
+        "ok": succeeded == len(ids),
+        "succeeded": succeeded,
+        "failed": len(ids) - succeeded,
+        "results": results,
+    }
 
 
 def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
@@ -185,6 +241,57 @@ def register_write_tools(mcp: FastMCP, client: HaloClient) -> None:
             return gate
         updated = await client.post_update("/Tickets", {"id": id, "priority_id": priority_id})
         return {"ok": True, "ticket": _project_write(updated, TicketSummary)}
+
+    @mcp.tool
+    async def bulk_assign(
+        ticket_ids: list[int],
+        confirm: bool,
+        ctx: Context,
+        agent_id: int | None = None,
+        team_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Assign many tickets to an agent and/or team in one guarded batch.
+
+        Requires confirm=true. Refuses when no agent_id/team_id is given, on an
+        empty list, or on a batch larger than 50. Duplicate ids are collapsed and
+        each ticket is updated by explicit id; per-ticket results are returned so
+        partial failures are visible.
+        """
+        if agent_id is None and team_id is None:
+            return {
+                "ok": False,
+                "reason": "nothing_to_assign",
+                "message": "Provide agent_id and/or team_id.",
+            }
+        ids = _dedupe(ticket_ids)
+        guard = _bulk_guard(ids)
+        if guard is not None:
+            return guard
+        gate = await _gate(
+            ctx, confirm, f"Assign {len(ids)} tickets to agent={agent_id}, team={team_id}?"
+        )
+        if gate is not None:
+            return gate
+        return await _bulk_apply(client, ids, _clean({"agent_id": agent_id, "team_id": team_id}))
+
+    @mcp.tool
+    async def bulk_set_status(
+        ticket_ids: list[int], status_id: int, confirm: bool, ctx: Context
+    ) -> dict[str, Any]:
+        """Set the status of many tickets in one guarded batch. Requires confirm=true.
+
+        Refuses an empty list or a batch larger than 50. Duplicate ids are
+        collapsed and each ticket is updated by explicit id; per-ticket results
+        are returned.
+        """
+        ids = _dedupe(ticket_ids)
+        guard = _bulk_guard(ids)
+        if guard is not None:
+            return guard
+        gate = await _gate(ctx, confirm, f"Set {len(ids)} tickets to status {status_id}?")
+        if gate is not None:
+            return gate
+        return await _bulk_apply(client, ids, {"status_id": status_id})
 
     @mcp.tool
     async def add_action(
